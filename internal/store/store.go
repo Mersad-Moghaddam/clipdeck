@@ -448,6 +448,55 @@ func (s *Store) PinItem(id string, pinned bool) error {
 	return err
 }
 
+// LegacyRichPreviewItems returns code/json items whose stored rich preview
+// predates the theme-agnostic class-based markup (identified by the absence
+// of "t-" classes). The daemon re-renders these once at startup so old clips
+// pick up theming without waiting for a re-copy.
+func (s *Store) LegacyRichPreviewItems(limit int) ([]Item, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.Query(
+		`SELECT id, type, content, preview, rich_preview, created_at, updated_at
+		 FROM items
+		 WHERE type IN ('code', 'json')
+		   AND rich_preview <> ''
+		   AND rich_preview NOT LIKE '%class="t-%'
+		 ORDER BY updated_at DESC
+		 LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []Item
+	for rows.Next() {
+		var it Item
+		var createdAtMs, updatedAtMs int64
+		if err := rows.Scan(&it.ID, &it.Type, &it.Content, &it.Preview, &it.RichPreview, &createdAtMs, &updatedAtMs); err != nil {
+			return nil, err
+		}
+		it.CreatedAt = time.UnixMilli(createdAtMs)
+		it.UpdatedAt = time.UnixMilli(updatedAtMs)
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
+// RefreshRichPreview rewrites only the rich_preview column. Markup format
+// migrations must not touch updated_at: that would reshuffle the user's
+// history order as a side effect of a rendering change.
+func (s *Store) RefreshRichPreview(id, markup string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec("UPDATE items SET rich_preview = ? WHERE id = ?", markup, id)
+	return err
+}
+
 func (s *Store) DeleteItem(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -28,7 +28,7 @@ var (
 	configFlag  = flag.String("config", "", "Path to custom config file")
 )
 
-const version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -352,7 +352,7 @@ print([fibonacci(i) for i in range(10)])`
 	saveSynthetic(st, pyCode, "kitty", false, now.Add(-8*time.Minute))
 
 	// 4. JSON
-	jsonContent := `{\n  "name": "omarchy-clipdeck",\n  "version": "0.1.0",\n  "status": "production-ready",\n  "stars": 128\n}`
+	jsonContent := `{\n  "name": "omarchy-clipdeck",\n  "version": "0.1.1",\n  "status": "production-ready",\n  "stars": 128\n}`
 	saveSynthetic(st, jsonContent, "firefox", false, now.Add(-7*time.Minute))
 
 	// 5. Color hex & rgb

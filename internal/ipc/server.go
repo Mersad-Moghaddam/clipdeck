@@ -29,6 +29,11 @@ type Request struct {
 	Params json.RawMessage `json:"params"`
 }
 
+// Version is reported over IPC so clients can display the daemon they are
+// talking to. The daemon entrypoint sets it at startup from its own version
+// constant; the default keeps library-only users (tests, tools) sane.
+var Version = "dev"
+
 type Response struct {
 	ID     string    `json:"id"`
 	Result any       `json:"result,omitempty"`
@@ -279,7 +284,7 @@ func (s *Server) handleStatus() (any, *RPCError) {
 	}
 
 	return map[string]any{
-		"version":        "0.1.0",
+		"version":        Version,
 		"paused":         s.paused,
 		"total_items":    total,
 		"pinned_items":   pinned,

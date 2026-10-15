@@ -11,10 +11,10 @@ import (
 )
 
 type Client struct {
-	conn    net.Conn
-	reader  *bufio.Reader
-	mu      sync.Mutex
-	reqSeq  atomic.Int64
+	conn   net.Conn
+	reader *bufio.Reader
+	mu     sync.Mutex
+	reqSeq atomic.Int64
 }
 
 func NewClient(socketPath string) (*Client, error) {

@@ -1,7 +1,6 @@
 package detect
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -10,9 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/alecthomas/chroma/v2/styles"
 )
 
 type Result struct {
@@ -23,8 +20,8 @@ type Result struct {
 }
 
 var (
-	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	phoneRegex = regexp.MustCompile(`^(\+?[0-9]{1,3}[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?[\d\s-]{6,12}$`)
+	emailRegex    = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	phoneRegex    = regexp.MustCompile(`^(\+?[0-9]{1,3}[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?[\d\s-]{6,12}$`)
 	hexColorRegex = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
 	rgbColorRegex = regexp.MustCompile(`^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)$`)
 	hslColorRegex = regexp.MustCompile(`^hsla?\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%(?:\s*,\s*([0-9.]+))?\s*\)$`)
@@ -204,7 +201,7 @@ func detectJSON(s string) (Result, bool) {
 	return Result{
 		Type:        "json",
 		Preview:     preview,
-		RichPreview: pretty,
+		RichPreview: RenderJSONMarkup(pretty),
 		Metadata: map[string]string{
 			"lines": strconv.Itoa(len(lines)),
 			"size":  strconv.Itoa(len(s)),
@@ -347,24 +344,11 @@ func detectCode(s string) (Result, bool) {
 		lexer = lexers.Fallback
 	}
 
-	// Generate Chroma syntax highlighting in HTML formatted rich text
-	style := styles.Get("dracula")
-	if style == nil {
-		style = styles.Fallback
-	}
-
-	formatter := chromahtml.New(
-		chromahtml.Standalone(false),
-		chromahtml.WithLineNumbers(true),
-	)
-
-	iterator, err := lexer.Tokenise(nil, s)
-	if err != nil {
-		return Result{}, false
-	}
-
-	var buf bytes.Buffer
-	if err := formatter.Format(&buf, style, iterator); err != nil {
+	// Theme-agnostic markup: structural classes only, no colors. The QML
+	// overlay maps them onto the active Omarchy palette, so highlighted code
+	// can never clash with (or override) the user's theme.
+	richPreview := RenderCodeMarkup(lexer, s)
+	if richPreview == "" {
 		return Result{}, false
 	}
 
@@ -381,7 +365,7 @@ func detectCode(s string) (Result, bool) {
 	return Result{
 		Type:        "code",
 		Preview:     firstLine,
-		RichPreview: buf.String(),
+		RichPreview: richPreview,
 		Metadata: map[string]string{
 			"language": lang,
 			"lines":    strconv.Itoa(len(lines)),

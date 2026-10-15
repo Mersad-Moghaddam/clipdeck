@@ -29,12 +29,12 @@ type CaptureConfig struct {
 }
 
 type PrivacyConfig struct {
-	AutoMaskSensitive bool  `toml:"auto_mask_sensitive"`
-	SensitiveTTLSec   int   `toml:"sensitive_ttl_sec"`
-	CheckLuhn         bool  `toml:"check_luhn"`
-	CheckAPIKeys      bool  `toml:"check_api_keys"`
-	CheckPrivateKeys  bool  `toml:"check_private_keys"`
-	FetchLinkTitles   bool  `toml:"fetch_link_titles"`
+	AutoMaskSensitive bool `toml:"auto_mask_sensitive"`
+	SensitiveTTLSec   int  `toml:"sensitive_ttl_sec"`
+	CheckLuhn         bool `toml:"check_luhn"`
+	CheckAPIKeys      bool `toml:"check_api_keys"`
+	CheckPrivateKeys  bool `toml:"check_private_keys"`
+	FetchLinkTitles   bool `toml:"fetch_link_titles"`
 }
 
 type IPCConfig struct {

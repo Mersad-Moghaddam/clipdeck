@@ -8,12 +8,12 @@ import (
 )
 
 var (
-	privateKeyRegex = regexp.MustCompile(`-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----`)
-	jwtRegex        = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
-	awsKeyRegex     = regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`)
-	githubPatRegex  = regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}\b|github_pat_[A-Za-z0-9_]{82}\b`)
-	stripeKeyRegex  = regexp.MustCompile(`\b(sk_live|rk_live)_[0-9a-zA-Z]{24,}\b`)
-	slackTokenRegex = regexp.MustCompile(`\bxox[baprs]-[0-9a-zA-Z-]{10,}\b`)
+	privateKeyRegex   = regexp.MustCompile(`-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----`)
+	jwtRegex          = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
+	awsKeyRegex       = regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`)
+	githubPatRegex    = regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}\b|github_pat_[A-Za-z0-9_]{82}\b`)
+	stripeKeyRegex    = regexp.MustCompile(`\b(sk_live|rk_live)_[0-9a-zA-Z]{24,}\b`)
+	slackTokenRegex   = regexp.MustCompile(`\bxox[baprs]-[0-9a-zA-Z-]{10,}\b`)
 	genericTokenRegex = regexp.MustCompile(`\b(?:Bearer\s+|api[_-]?key[:=]\s*|token[:=]\s*)([A-Za-z0-9_\-\.]{20,})\b`)
 )
 

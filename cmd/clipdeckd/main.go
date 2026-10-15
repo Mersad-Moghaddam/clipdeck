@@ -12,6 +12,7 @@ import (
 
 	"github.com/Mersad-Moghaddam/clipdeck/internal/capture"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/config"
+	"github.com/Mersad-Moghaddam/clipdeck/internal/detect"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/ipc"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/store"
 )
@@ -23,7 +24,7 @@ var (
 	versionFlag   = flag.Bool("version", false, "Print version and exit")
 )
 
-const version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	flag.Parse()
@@ -34,6 +35,7 @@ func main() {
 	}
 
 	log.Printf("Starting clipdeckd v%s (profile: %q)", version, *profileFlag)
+	ipc.Version = version
 
 	cfg := config.DefaultConfig(*profileFlag)
 	if *configFlag != "" {
@@ -52,6 +54,11 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Re-render stored code/JSON previews that predate the theme-agnostic
+	// markup format. Runs in the background so a cold start never blocks on
+	// history size.
+	go refreshLegacyMarkup(ctx, st)
 
 	var srv *ipc.Server
 	var cap *capture.Capturer
@@ -112,4 +119,47 @@ func main() {
 	cancel()
 	srv.Stop()
 	log.Printf("clipdeckd shut down cleanly.")
+}
+
+// refreshLegacyMarkup walks stored code/JSON clips whose rich preview still
+// carries the v0.1.0 inline palette and regenerates them with class-based
+// markup. It pages in batches and exits as soon as each row is either
+// refreshed or no longer highlightable, so it terminates even on failures.
+func refreshLegacyMarkup(ctx context.Context, st *store.Store) {
+	const batch = 200
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		items, err := st.LegacyRichPreviewItems(batch)
+		if err != nil {
+			log.Printf("Rich preview refresh failed: %v", err)
+			return
+		}
+		if len(items) == 0 {
+			return
+		}
+
+		refreshed := 0
+		for i := range items {
+			res := detect.Detect(items[i].Content)
+			markup := res.RichPreview
+			if res.Type != "code" && res.Type != "json" {
+				markup = "" // nothing to highlight anymore; stop revisiting
+			}
+			if err := st.RefreshRichPreview(items[i].ID, markup); err != nil {
+				log.Printf("Rich preview refresh failed for %s: %v", items[i].ID, err)
+				return
+			}
+			refreshed++
+		}
+
+		log.Printf("Re-rendered %d stored rich previews for the active theme", refreshed)
+		if len(items) < batch {
+			return
+		}
+	}
 }
