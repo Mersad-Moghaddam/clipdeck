@@ -1,0 +1,71 @@
+# Build + publish release artifacts for a v* tag:
+#   - linux/amd64 + linux/arm64 CGO-free binaries (portable tarballs)
+#   - .deb / .rpm / .apk packages built with nfpm
+#   - sha256 checksums, all attached to a GitHub release
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binaries
+        env:
+          VERSION: ${{ github.ref_name }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          V="${VERSION#v}"
+          CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
+            go build -trimpath -ldflags "-s -w -X main.version=$V" -o bin/clipdeck ./cmd/clipdeck
+          CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
+            go build -trimpath -ldflags "-s -w -X main.version=$V" -o bin/clipdeckd ./cmd/clipdeckd
+          mkdir -p dist
+          tar -C bin -czf "dist/clipdeck_${V}_linux_${ARCH}.tar.gz" clipdeck clipdeckd
+          ( cd dist && sha256sum "clipdeck_${V}_linux_${ARCH}.tar.gz" > "clipdeck_${V}_linux_${ARCH}.tar.gz.sha256" )
+
+      - name: Build packages with nfpm
+        env:
+          VERSION: ${{ github.ref_name }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          V="${VERSION#v}"
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          for pkg in deb rpm apk; do
+            VERSION="$V" ARCH="$ARCH" "$(go env GOPATH)/bin/nfpm" package \
+              --config packaging/nfpm.yaml --packager "$pkg" --target dist/
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

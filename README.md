@@ -35,6 +35,27 @@ Hyprland IPC (active window)├──▶ clipdeckd (Go) ──▶ SQLite (FTS5) 
 
 ---
 
+## Install
+
+Prebuilt packages for v0.2.0 are attached to every
+[GitHub release](https://github.com/Mersad-Moghaddam/clipdeck/releases):
+
+| System | Command |
+|---|---|
+| Debian / Ubuntu | `sudo apt install ./clipdeck_0.2.0_amd64.deb` |
+| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.2.0-1.x86_64.rpm` |
+| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.2.0_x86_64.apk` |
+| Arch (AUR) | `yay -S clipdeck` |
+| Any distro (portable) | `curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh \| bash` |
+
+The installer detects your architecture, can build from source
+(`--from-source`), installs into `~/.local` (override with `--prefix`), wires
+up the systemd user service, and runs `clipdeck doctor`. The daemon is pure Go
+(CGO-free), so the same binaries run on any distro of the matching
+architecture — glibc and musl included.
+
+---
+
 ## Building from Source
 
 ### Prerequisites
@@ -104,4 +125,4 @@ clipdeck pause toggle
 
 ## License
 
-GPL-3.0-or-later
+MIT License — see [LICENSE](LICENSE).

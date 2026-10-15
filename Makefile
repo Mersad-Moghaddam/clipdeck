@@ -1,15 +1,18 @@
 SHELL := /bin/bash
-VERSION ?= 0.1.0
-LDFLAGS := -s -w -X main.Version=$(VERSION)
+VERSION ?= 0.2.0
+ARCH ?= amd64
+LDFLAGS := -s -w -X main.version=$(VERSION)
 PREFIX ?= $(shell echo $$HOME)/.local
+DIST := dist
+NFPM ?= $(shell command -v nfpm 2>/dev/null || echo /tmp/opencode/bin/nfpm)
 
-.PHONY: all build test race bench lint integ release clean
+.PHONY: all build test race bench lint integ release clean packages deb rpm apk tarball install uninstall
 
 all: build test
 
 build:
-	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/clipdeckd ./cmd/clipdeckd
-	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/clipdeck ./cmd/clipdeck
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -trimpath -ldflags '$(LDFLAGS)' -o bin/clipdeckd ./cmd/clipdeckd
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -trimpath -ldflags '$(LDFLAGS)' -o bin/clipdeck ./cmd/clipdeck
 
 test:
 	go test -v ./...
@@ -27,8 +30,21 @@ lint:
 integ:
 	go test -v -tags=integration ./...
 
-release: build
-	@echo "Built release binaries for $(VERSION) in bin/"
+# Named packages via nfpm plus a portable tarball. The binaries are CGO-free,
+# so every artifact works on any distro of the matching architecture.
+packages: deb rpm apk tarball
+
+deb rpm apk: build
+	@mkdir -p $(DIST)
+	VERSION=$(VERSION) ARCH=$(ARCH) $(NFPM) package --config packaging/nfpm.yaml --packager $@ --target $(DIST)/
+
+tarball: build
+	@mkdir -p $(DIST)
+	tar -C bin -czf $(DIST)/clipdeck_$(VERSION)_linux_$(ARCH).tar.gz clipdeck clipdeckd
+	cd $(DIST) && sha256sum clipdeck_$(VERSION)_linux_$(ARCH).tar.gz > clipdeck_$(VERSION)_linux_$(ARCH).tar.gz.sha256
+
+release: packages
+	@echo "Release artifacts for $(VERSION) in $(DIST)/"
 
 install: build
 	install -d $(PREFIX)/bin
@@ -38,5 +54,10 @@ install: build
 	sed 's|/usr/bin/clipdeckd|$(PREFIX)/bin/clipdeckd|' packaging/clipdeckd.service > $(HOME)/.config/systemd/user/clipdeckd.service
 	systemctl --user daemon-reload
 
+uninstall:
+	-systemctl --user disable --now clipdeckd.service
+	rm -f $(HOME)/.config/systemd/user/clipdeckd.service $(PREFIX)/bin/clipdeck $(PREFIX)/bin/clipdeckd
+	-systemctl --user daemon-reload
+
 clean:
-	rm -rf bin/ coverage.out
+	rm -rf bin/ coverage.out $(DIST)

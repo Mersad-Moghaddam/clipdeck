@@ -1,0 +1,63 @@
+# nfpm config — builds .deb/.rpm/.apk from the CGO-free binaries, so the same
+# daemon works on Debian/Ubuntu, Fedora/RHEL, Alpine and friends.
+#
+# Usage (see `make deb`, `make rpm`, `make apk`):
+#   VERSION=0.2.0 ARCH=amd64 nfpm package --config packaging/nfpm.yaml \
+#     --packager deb --target dist/
+name: clipdeck
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: Mersad Moghaddam <nickmersad81@gmail.com>
+description: |
+  A keyboard-first clipboard manager daemon and CLI for Wayland desktops.
+  Captures text, code, links, colors and images; search with type:/app:/
+  pinned filters; pin, merge, transform and paste. Ships the clipdeckd user
+  service and the clipdeck CLI (clipdeck doctor, clipdeck history, ...).
+vendor: ClipDeck
+homepage: https://github.com/Mersad-Moghaddam/clipdeck
+license: MIT
+depends:
+  - wl-clipboard
+recommends:
+  - wtype
+contents:
+  - src: ./bin/clipdeck
+    dst: /usr/bin/clipdeck
+    file_info:
+      mode: 0755
+  - src: ./bin/clipdeckd
+    dst: /usr/bin/clipdeckd
+    file_info:
+      mode: 0755
+  - src: ./packaging/clipdeckd.service
+    dst: /usr/lib/systemd/user/clipdeckd.service
+    file_info:
+      mode: 0644
+  - src: ./LICENSE
+    dst: /usr/share/licenses/clipdeck/LICENSE
+    file_info:
+      mode: 0644
+  - src: ./README.md
+    dst: /usr/share/doc/clipdeck/README.md
+    file_info:
+      mode: 0644
+scripts:
+  postinstall: ./packaging/postinstall.sh
+overrides:
+  deb:
+    depends:
+      - libc6
+      - wl-clipboard
+    recommends:
+      - wtype
+      - xdg-utils
+  rpm:
+    depends:
+      - glibc
+      - wl-clipboard
+  apk:
+    depends:
+      - wl-clipboard
