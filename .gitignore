@@ -1,0 +1,24 @@
+# Binaries
+bin/
+/clipdeck
+/clipdeckd
+*.pkg.tar.zst
+*.pkg.tar.xz
+
+# Test and coverage artifacts
+coverage.out
+reports/*.out
+reports/fuzz-*
+reports/bench-*
+reports/idle.txt
+reports/coverage.txt
+
+# Local development data
+dev-data/
+*.sock
+
+# OS and Editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp

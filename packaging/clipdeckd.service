@@ -1,0 +1,20 @@
+[Unit]
+Description=ClipDeck Clipboard History Daemon
+Documentation=https://github.com/Mersad-Moghaddam/clipdeck
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/clipdeckd
+Restart=always
+RestartSec=1s
+StandardOutput=journal
+StandardError=journal
+
+RuntimeDirectory=clipdeck
+StateDirectory=clipdeck
+ConfigurationDirectory=clipdeck
+
+[Install]
+WantedBy=graphical-session.target
