@@ -305,8 +305,8 @@ func (s *Store) SearchItems(query string, limit, offset int) ([]Item, int, error
 		args = append(args, typeFilter)
 	}
 	if appFilter != "" {
-		whereClauses = append(whereClauses, "LOWER(i.source_app) LIKE ?")
-		args = append(args, "%"+appFilter+"%")
+		whereClauses = append(whereClauses, `LOWER(i.source_app) LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+escapeLike(appFilter)+"%")
 	}
 
 	var selectQuery string
@@ -369,8 +369,9 @@ func (s *Store) searchFallback(text, typeFilter, appFilter string, pinnedOnly bo
 	args := []interface{}{}
 
 	if text != "" {
-		whereClauses = append(whereClauses, "(i.content LIKE ? OR i.preview LIKE ?)")
-		args = append(args, "%"+text+"%", "%"+text+"%")
+		pat := "%" + escapeLike(text) + "%"
+		whereClauses = append(whereClauses, `(i.content LIKE ? ESCAPE '\' OR i.preview LIKE ? ESCAPE '\')`)
+		args = append(args, pat, pat)
 	}
 	if pinnedOnly {
 		whereClauses = append(whereClauses, "i.pinned = 1")
@@ -380,8 +381,8 @@ func (s *Store) searchFallback(text, typeFilter, appFilter string, pinnedOnly bo
 		args = append(args, typeFilter)
 	}
 	if appFilter != "" {
-		whereClauses = append(whereClauses, "LOWER(i.source_app) LIKE ?")
-		args = append(args, "%"+appFilter+"%")
+		whereClauses = append(whereClauses, `LOWER(i.source_app) LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+escapeLike(appFilter)+"%")
 	}
 
 	whereSQL := ""
@@ -651,6 +652,16 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// escapeLike neutralizes SQL LIKE metacharacters in user input so that
+// queries for "%" or "_" match those literal characters instead of acting
+// as wildcards over the whole history.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 func sha256Hash(data []byte) []byte {

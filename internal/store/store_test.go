@@ -188,3 +188,60 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+func TestSearchFallbackEscapesLikeWildcards(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "clipdeck-store-like-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	s, err := Open(tmpDir)
+	if err != nil {
+		t.Fatalf("Open store: %v", err)
+	}
+	defer s.Close()
+
+	add := func(content, app string) {
+		item := &Item{
+			Hash:      sha256Hex(content),
+			Type:      "text",
+			Mime:      "text/plain",
+			Content:   content,
+			Preview:   content,
+			SourceApp: app,
+			SizeBytes: int64(len(content)),
+		}
+		if err := s.SaveItem(item); err != nil {
+			t.Fatalf("SaveItem(%q): %v", content, err)
+		}
+	}
+	add("100% cotton", "safari")
+	add("plain text", "notes")
+
+	// Exercise the LIKE fallback directly: the FTS path never errors on
+	// these inputs, so this is the deterministic way to test escaping.
+	items, _, err := s.searchFallback("%", "", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("searchFallback text: %v", err)
+	}
+	if len(items) != 1 || items[0].Content != "100% cotton" {
+		t.Fatalf("searching %% must match the literal item only, got %d items", len(items))
+	}
+
+	items, _, err = s.searchFallback("", "", "_", false, 50, 0)
+	if err != nil {
+		t.Fatalf("searchFallback app underscore: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("app:_ must not wildcard, got %d items", len(items))
+	}
+
+	items, _, err = s.searchFallback("", "", "safari", false, 50, 0)
+	if err != nil {
+		t.Fatalf("searchFallback app normal: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("normal app search must still match, got %d items", len(items))
+	}
+}
