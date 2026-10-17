@@ -8,7 +8,7 @@ Built in pure Go with zero CGO dependencies (`modernc.org/sqlite` with FTS5 trig
 
 ## Features
 
-- **Blazing Fast Search:** Sub-30ms search across 10,000+ clipboard items using SQLite FTS5 with trigram tokenization (supports Persian, Arabic, and Latin script substring search).
+- **Searchable history:** SQLite FTS5 trigram substring/phrase search, including international text. Latency depends on query selectivity and history; see [measured results](docs/PERFORMANCE.md), not a universal timing guarantee.
 - **Intelligent Type Detection:** Automatically categorizes entries into links, code, colors, JSON, email, phone numbers, file paths, numbers, and plain text.
 - **Privacy & Sensitive Data Protection:**
   - Detects `x-kde-passwordManagerHint` and secret MIME flags from password managers.
@@ -16,7 +16,7 @@ Built in pure Go with zero CGO dependencies (`modernc.org/sqlite` with FTS5 trig
   - Automatically masks sensitive items and purges them after a configurable TTL (default 60s).
 - **Persian & RTL Support:** Native digit conversion (Persian/Latin/Arabic), Arabic yeh/kaf normalization, and zero-width non-joiner (ZWNJ) normalization.
 - **Daemon & CLI:**
-  - Lightweight background daemon (`clipdeckd`) with under 20MB idle RSS and near-zero CPU usage.
+   - Background daemon (`clipdeckd`); resource usage needs measurement for the active workload.
   - Full CLI (`clipdeck`) featuring `status`, `doctor`, `dev seed`, `clear`, `export`, and `import`.
 - **Hardened IPC:** Unix domain socket restricted with `0600` file permissions and kernel-level `SO_PEERCRED` validation (same UID enforcement).
 
@@ -37,25 +37,31 @@ Hyprland IPC (active window)├──▶ clipdeckd (Go) ──▶ SQLite (FTS5) 
 
 ## Install
 
+> **Development branch:** v0.4 is not released. The new `list`, `copy`, and
+> copy-first `pick` commands require a query-capable daemon from the same
+> development version. Existing public v0.3.1 downloads are unchanged.
+> Read [desktop compatibility](docs/COMPATIBILITY.md) and
+> [outstanding release gates](docs/RELEASE_CHECKLIST.md) before testing.
+
 Prebuilt packages for v0.3.1 are attached to every
 [GitHub release](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
 | System | Command |
 |---|---|
 | Debian / Ubuntu | `sudo apt install ./clipdeck_0.3.1_amd64.deb` |
-| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.3.1-1.x86_64.rpm` |
+| Fedora / RHEL | `sudo dnf install ./clipdeck-0.3.1-1.x86_64.rpm` |
+| openSUSE | `sudo zypper install ./clipdeck-0.3.1-1.x86_64.rpm` |
 | Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.3.1_x86_64.apk` |
-| Arch (AUR) | `yay -S clipdeck` |
+| Arch | Use the native release package; AUR availability must be checked separately |
 | Any distro (portable) | `curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh \| bash` |
 
 The installer detects your architecture, can build from source
 (`--from-source`), installs into `~/.local` (override with `--prefix`), wires
 up the systemd user service, and runs `clipdeck doctor`. The daemon is pure Go
-(CGO-free), so the same binaries run on any distro of the matching
-architecture — glibc and musl included. Verified end-to-end on Debian 12
-(`apt install` of the `.deb` with dependencies resolved from Debian, static
-binaries, daemon IPC and doctor) inside a clean bookworm rootfs, as well as on
-Arch/Omarchy.
+(CGO-free), avoiding a runtime libc dependency. Matching architecture and
+kernel/desktop capabilities are still required. See the compatibility matrix
+for current verification; older installation reports do not validate this
+development branch or every Wayland compositor.
 
 ---
 

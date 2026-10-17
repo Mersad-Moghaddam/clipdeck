@@ -21,3 +21,10 @@
 Do not tag, upload or announce this work as a completed faster release while
 these gates remain open. Existing v0.3.1 is unchanged. No live configuration or
 user history has been modified by these development commits.
+
+Development CLI cross-builds succeeded for amd64 and arm64 and `file` reports
+both statically linked. Their version remains v0.3.1 until the planned release
+bump; they are not published v0.4 artifacts. Docker tests are blocked by socket
+permission denial; no privilege changes were attempted. CI now derives Go from
+go.mod, tests installer/workflows, pins nfpm and stages tag releases as drafts;
+complete package validation/action revision pinning remain outstanding.

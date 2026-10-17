@@ -15,3 +15,11 @@ The CLI picker requires the running query-capable daemon and an installed menu.
 Copy-only is the default. Paste injection is optional and successful command
 execution does not confirm delivery to the target application. Source attribution
 is currently Hyprland-specific; do not assume app exclusions work elsewhere.
+
+## Validation blockers
+
+The current account cannot access `/var/run/docker.sock` (permission denied),
+so clean distro container install/upgrade tests have not run. No privilege or
+Docker-group changes have been made. GNOME/KDE/Sway and native/emulated arm64
+runtime environments have not been provisioned. Cross-compilation alone must
+not promote these matrix cells to tested.
