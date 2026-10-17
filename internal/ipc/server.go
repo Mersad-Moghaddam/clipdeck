@@ -312,6 +312,8 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *RPCError
 		return s.handleList(params)
 	case "search":
 		return s.handleSearch(params)
+	case "query":
+		return s.handleQuery(params)
 	case "get":
 		return s.handleGet(params)
 	case "pin":
@@ -342,6 +344,7 @@ func (s *Server) handleStatus() (any, *RPCError) {
 	}
 
 	return map[string]any{
+		"capabilities":   []string{"query"},
 		"version":        Version,
 		"paused":         s.isPaused(),
 		"total_items":    total,

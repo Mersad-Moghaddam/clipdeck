@@ -81,6 +81,8 @@ func main() {
 	}
 
 	switch subcmd {
+	case "list", "copy", "pick":
+		os.Exit(runHistoryCommand(cfg, append([]string{subcmd}, subcmdArgs...), os.Stdout, os.Stderr))
 	case "status":
 		runStatus(cfg)
 	case "doctor":
@@ -113,6 +115,9 @@ Usage:
   clipdeck [--profile dev] <command> [arguments]
 
 Commands:
+  list               List safe display history (--query, --type, --json)
+  copy <id>          Copy an item through the daemon (--plain)
+  pick               Open an installed picker (copy-only; --paste to inject)
   status             Show daemon and store status
   doctor             Run diagnostic checks on system dependencies and environment
   clear              Clear clipboard history (--include-pinned to clear pins too)

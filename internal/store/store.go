@@ -267,13 +267,12 @@ func (s *Store) ListItems(limit, offset int) ([]Item, int, error) {
 }
 
 func (s *Store) SearchItems(query string, limit, offset int) ([]Item, int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return s.ListItems(limit, offset)
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	var typeFilter, appFilter string
 	var pinnedOnly bool
@@ -282,9 +281,9 @@ func (s *Store) SearchItems(query string, limit, offset int) ([]Item, int, error
 	parts := strings.Fields(query)
 	for _, p := range parts {
 		if strings.HasPrefix(strings.ToLower(p), "type:") {
-			typeFilter = strings.ToLower(strings.TrimPrefix(p, "type:"))
+			typeFilter = strings.ToLower(p[len("type:"):])
 		} else if strings.HasPrefix(strings.ToLower(p), "app:") {
-			appFilter = strings.ToLower(strings.TrimPrefix(p, "app:"))
+			appFilter = strings.ToLower(p[len("app:"):])
 		} else if strings.EqualFold(p, "pinned") || strings.EqualFold(p, "pinned:true") {
 			pinnedOnly = true
 		} else {
@@ -321,7 +320,7 @@ func (s *Store) SearchItems(query string, limit, offset int) ([]Item, int, error
 		escapedFTS := strings.ReplaceAll(freeText, `"`, `""`)
 		ftsMatch := `"` + escapedFTS + `"`
 		whereClauses = append(whereClauses, "items_fts MATCH ?")
-		args = append([]interface{}{ftsMatch}, args...)
+		args = append(args, ftsMatch)
 
 		whereSQL := strings.Join(whereClauses, " AND ")
 		selectQuery = fmt.Sprintf(`SELECT
