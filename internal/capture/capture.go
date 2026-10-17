@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,6 +27,7 @@ type Capturer struct {
 	paused  bool
 	onEvent func(event string, item *store.Item)
 	mu      sync.RWMutex
+	snapMu  sync.Mutex // serializes snapshots between the text and image watchers
 }
 
 func New(cfg *config.Config, s *store.Store, onEvent func(string, *store.Item)) *Capturer {
@@ -72,6 +74,17 @@ func (c *Capturer) runWatcher(ctx context.Context, isImage bool) {
 	backoff := 500 * time.Millisecond
 	maxBackoff := 5 * time.Second
 
+	// wl-paste --watch re-runs this command for every selection change. The
+	// command drains the payload and prints exactly one newline per change,
+	// turning stdout into a clean one-event-per-line trigger stream. The
+	// selection itself is then read via SnapshotCurrent(), which sidesteps
+	// payload framing problems (clipboard data has no inherent delimiter).
+	watchCommand := "cat >/dev/null; printf '\\n'"
+	watcherType := "text"
+	if isImage {
+		watcherType = "image"
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -79,14 +92,7 @@ func (c *Capturer) runWatcher(ctx context.Context, isImage bool) {
 		default:
 		}
 
-		var cmd *exec.Cmd
-		if isImage {
-			// Watch images
-			cmd = exec.CommandContext(ctx, "wl-paste", "--type", "image", "--watch", "cat")
-		} else {
-			// Watch text
-			cmd = exec.CommandContext(ctx, "wl-paste", "--type", "text", "--watch", "cat")
-		}
+		cmd := exec.CommandContext(ctx, "wl-paste", "--type", watcherType, "--watch", "sh", "-c", watchCommand)
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -99,10 +105,19 @@ func (c *Capturer) runWatcher(ctx context.Context, isImage bool) {
 			continue
 		}
 
-		// When wl-paste --watch fires, it spawns its child with the payload on stdin.
-		// However, in Go we can also poll or use a helper child process.
-		// Let's implement SnapshotCurrent() as the reliable ingest method triggered on change!
-		_ = stdout
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			// One line per selection change: snapshot the current clipboard
+			// and store it. Serialized so the text and image watchers cannot
+			// race each other into the store.
+			c.snapMu.Lock()
+			_, err := c.SnapshotCurrent()
+			c.snapMu.Unlock()
+			if err != nil {
+				log.Printf("capture (%s): %v", watcherType, err)
+			}
+		}
+
 		_ = cmd.Wait()
 
 		time.Sleep(backoff)
