@@ -79,6 +79,56 @@ func TestListResponseSlimsOversizedContent(t *testing.T) {
 	}
 }
 
+func TestListResponseClearsOversizedRichPreviewWithoutBrokenTags(t *testing.T) {
+	_, st, sockPath, _ := newHardeningServer(t)
+
+	hugeRich := `<span class="t-keyword">package</span> <span class="t-text">` + strings.Repeat("x", maxListStreamRich+500) + `</span>`
+	item := &store.Item{
+		Hash:        "bigcode",
+		Type:        "code",
+		Mime:        "text/plain",
+		Content:     "package main",
+		Preview:     "package main",
+		RichPreview: hugeRich,
+		SizeBytes:   int64(len("package main")),
+	}
+	if err := st.SaveItem(item); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	client, err := NewClient(sockPath)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	defer client.Close()
+
+	var res struct {
+		Items []store.Item `json:"items"`
+		Total int          `json:"total"`
+	}
+	if err := client.Call("list", map[string]any{"limit": 10}, &res); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(res.Items))
+	}
+	// In list response, oversized RichPreview must be safely cleared to avoid broken HTML tags.
+	if res.Items[0].RichPreview != "" {
+		t.Fatalf("expected oversized RichPreview to be cleared in list stream, got len %d", len(res.Items[0].RichPreview))
+	}
+
+	// get keeps delivering the full untruncated RichPreview.
+	var getRes struct {
+		Item store.Item `json:"item"`
+	}
+	if err := client.Call("get", map[string]any{"id": item.ID}, &getRes); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if getRes.Item.RichPreview != hugeRich {
+		t.Fatalf("get must return full RichPreview (got %d, want %d)", len(getRes.Item.RichPreview), len(hugeRich))
+	}
+}
+
 func TestGetUnknownItemReturnsNotFoundCode(t *testing.T) {
 	_, _, sockPath, _ := newHardeningServer(t)
 

@@ -2,7 +2,7 @@
 # daemon works on Debian/Ubuntu, Fedora/RHEL, Alpine and friends.
 #
 # Usage (see `make deb`, `make rpm`, `make apk`):
-#   VERSION=0.3.0 ARCH=amd64 nfpm package --config packaging/nfpm.yaml \
+#   VERSION=0.3.1 ARCH=amd64 nfpm package --config packaging/nfpm.yaml \
 #     --packager deb --target dist/
 name: clipdeck
 arch: ${ARCH}

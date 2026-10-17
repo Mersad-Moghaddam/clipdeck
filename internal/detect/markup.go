@@ -83,8 +83,11 @@ func tokenRuns(tokens []chroma.Token) []markupRun {
 }
 
 func classForToken(t chroma.TokenType) string {
+	if t == chroma.Error || t == chroma.None {
+		return "t-text"
+	}
 	name := strings.ToLower(t.String())
-	if name == "" || name == "none" {
+	if name == "" {
 		return "t-text"
 	}
 	return "t-" + name
@@ -267,12 +270,18 @@ func renderEscapedLines(runs []markupRun) string {
 	return sb.String()
 }
 
-// escapeMarkupText makes one run safe for Qt rich text. Escaping runs first
-// so text like "&nbsp;" in user content stays literal; only the spaces and
-// tabs we control become entities afterward.
+// escapeMarkupText makes one run safe for Qt rich text. Indentation and runs
+// of whitespace are preserved as non-breaking spaces so code alignment stays
+// intact, while single inter-word spaces remain breakable so long paragraphs
+// and comments in RTL or prose do not form multi-thousand-pixel unbreakable blocks.
 func escapeMarkupText(s string) string {
 	e := html.EscapeString(s)
 	e = strings.ReplaceAll(e, "\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
-	e = strings.ReplaceAll(e, " ", "&nbsp;")
+	if strings.HasPrefix(e, " ") {
+		e = "&nbsp;" + e[1:]
+	}
+	for strings.Contains(e, "  ") {
+		e = strings.ReplaceAll(e, "  ", "&nbsp;&nbsp;")
+	}
 	return e
 }

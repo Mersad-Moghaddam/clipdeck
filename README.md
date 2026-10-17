@@ -37,14 +37,14 @@ Hyprland IPC (active window)├──▶ clipdeckd (Go) ──▶ SQLite (FTS5) 
 
 ## Install
 
-Prebuilt packages for v0.3.0 are attached to every
+Prebuilt packages for v0.3.1 are attached to every
 [GitHub release](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
 | System | Command |
 |---|---|
-| Debian / Ubuntu | `sudo apt install ./clipdeck_0.3.0_amd64.deb` |
-| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.3.0-1.x86_64.rpm` |
-| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.3.0_x86_64.apk` |
+| Debian / Ubuntu | `sudo apt install ./clipdeck_0.3.1_amd64.deb` |
+| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.3.1-1.x86_64.rpm` |
+| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.3.1_x86_64.apk` |
 | Arch (AUR) | `yay -S clipdeck` |
 | Any distro (portable) | `curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh \| bash` |
 

@@ -24,7 +24,7 @@ var (
 	versionFlag   = flag.Bool("version", false, "Print version and exit")
 )
 
-var version = "0.3.0"
+var version = "0.3.1"
 
 func main() {
 	flag.Parse()

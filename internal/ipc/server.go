@@ -259,7 +259,7 @@ func (s *Server) sendResponse(conn net.Conn, resp Response) {
 // the id-based copy/paste/get/transform paths.
 const (
 	maxListStreamContent = 16 * 1024
-	maxListStreamRich    = 32 * 1024
+	maxListStreamRich    = 96 * 1024
 )
 
 func trimToMax(s string, max int) string {

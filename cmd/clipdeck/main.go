@@ -28,7 +28,7 @@ var (
 	configFlag  = flag.String("config", "", "Path to custom config file")
 )
 
-var version = "0.3.0"
+var version = "0.3.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -324,7 +324,7 @@ func runDoctor(cfg *config.Config) {
 // "\n"-in-backticks variant once seeded broken pseudo-JSON items.
 const devSeedJSON = `{
   "name": "omarchy-clipdeck",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "status": "production-ready",
   "stars": 128
 }`

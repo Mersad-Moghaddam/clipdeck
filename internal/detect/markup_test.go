@@ -20,7 +20,7 @@ func TestRenderCodeMarkupEscapesUserContent(t *testing.T) {
 	if !strings.Contains(markup, "&lt;") || !strings.Contains(markup, "&gt;") {
 		t.Fatalf("expected escaped angle brackets, got: %q", markup)
 	}
-	if !strings.Contains(markup, "&lt;img&nbsp;src=x&nbsp;onerror=1&gt;") {
+	if !strings.Contains(markup, "&lt;img src=x onerror=1&gt;") {
 		t.Fatalf("expected escaped string payload, got: %q", markup)
 	}
 }
@@ -104,5 +104,19 @@ func TestRenderPlainMarkupFallsBackToGutter(t *testing.T) {
 	markup := RenderPlainMarkup("alpha\nbeta")
 	if !strings.Contains(markup, `class="t-text"`) || strings.Count(markup, "<br/>") != 1 {
 		t.Fatalf("unexpected plain markup: %q", markup)
+	}
+}
+
+func TestRenderCodeMarkupNonASCIIAndCoalesce(t *testing.T) {
+	src := "# عنوان تست\nیک متن فارسی طولانی با کلمات متعدد برای تست ادغام توکن‌ها\n"
+	lexer := lexers.Get("markdown")
+	markup := RenderCodeMarkup(lexer, src)
+
+	if strings.Contains(markup, `class="t-error"`) {
+		t.Fatalf("non-ASCII text must not be marked as t-error, got: %q", markup)
+	}
+	// Verify runs are coalesced: "عنوان تست" should not be broken into 1-character spans.
+	if strings.Contains(markup, `">ع</span>`) {
+		t.Fatalf("character-by-character span explosion detected: %q", markup)
 	}
 }
