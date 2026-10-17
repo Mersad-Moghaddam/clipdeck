@@ -29,6 +29,7 @@ jobs:
           go test ./...
           go vet ./...
           bash packaging/tests/install_test.sh
+          bash packaging/tests/archive_test.sh
 
       - name: Build binaries
         env:

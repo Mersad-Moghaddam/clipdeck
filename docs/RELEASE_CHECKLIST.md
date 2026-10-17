@@ -28,3 +28,10 @@ bump; they are not published v0.4 artifacts. Docker tests are blocked by socket
 permission denial; no privilege changes were attempted. CI now derives Go from
 go.mod, tests installer/workflows, pins nfpm and stages tag releases as drafts;
 complete package validation/action revision pinning remain outstanding.
+
+Local development `make packages VERSION=0.4.0-dev` succeeded with nfpm 2.48.0
+for amd64 deb/rpm/apk/tar. CLI reports 0.4.0-dev; both binaries are static,
+tar entries are the two expected executables and its SHA256 verifies. Archive
+inspection found expected binaries/unit/docs/license in packages; native distro
+install/upgrade testing remains blocked. Installer now rejects unexpected or
+nonregular tar entries, with an isolated malicious-symlink regression test.

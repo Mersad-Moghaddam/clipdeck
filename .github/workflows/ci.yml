@@ -27,6 +27,7 @@ jobs:
       - name: Installer and workflow regression tests
         run: |
           bash packaging/tests/install_test.sh
+          bash packaging/tests/archive_test.sh
           python3 packaging/tests/workflow_test.py
 
       - name: Vet / Lint

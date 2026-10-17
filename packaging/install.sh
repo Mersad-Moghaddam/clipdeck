@@ -128,6 +128,10 @@ else
   else
     die "checksum unavailable; refusing unverified release"
   fi
+  ARCHIVE_ENTRIES="$(tar -tzf "$TMP/$TARBALL")" || die "unsafe archive: cannot inspect entries"
+  [ "$(printf '%s\n' "$ARCHIVE_ENTRIES" | LC_ALL=C sort)" = "$(printf 'clipdeck\nclipdeckd')" ] || die "unsafe archive: unexpected paths"
+  ARCHIVE_MODES="$(tar -tvzf "$TMP/$TARBALL" | cut -c1)" || die "unsafe archive: cannot inspect types"
+  [ "$ARCHIVE_MODES" = "$(printf '%s\n%s' '-' '-')" ] || die "unsafe archive: only regular binaries allowed"
   run tar --no-same-owner -C "$TMP" -xzf "$TMP/$TARBALL"
 fi
 
