@@ -137,8 +137,39 @@ fi
 
 # ---------------------------------------------------------------- install
 run install -d "$BINDIR"
-run install -m 755 "$TMP/clipdeckd" "$BINDIR/clipdeckd"
-run install -m 755 "$TMP/clipdeck"  "$BINDIR/clipdeck"
+run install -m 755 "$TMP/clipdeckd" "$BINDIR/clipdeckd.new"
+run install -m 755 "$TMP/clipdeck"  "$BINDIR/clipdeck.new"
+
+BACKUP_D=0
+BACKUP_C=0
+if [ -e "$BINDIR/clipdeckd" ]; then
+  run cp -p "$BINDIR/clipdeckd" "$BINDIR/clipdeckd.old"
+  BACKUP_D=1
+fi
+if [ -e "$BINDIR/clipdeck" ]; then
+  run cp -p "$BINDIR/clipdeck" "$BINDIR/clipdeck.old"
+  BACKUP_C=1
+fi
+
+if ! run mv -f "$BINDIR/clipdeckd.new" "$BINDIR/clipdeckd"; then
+  run rm -f "$BINDIR/clipdeckd.new" "$BINDIR/clipdeck.new"
+  [ "$BACKUP_D" = 1 ] && run rm -f "$BINDIR/clipdeckd.old"
+  [ "$BACKUP_C" = 1 ] && run rm -f "$BINDIR/clipdeck.old"
+  die "could not install clipdeckd"
+fi
+
+if ! run mv -f "$BINDIR/clipdeck.new" "$BINDIR/clipdeck"; then
+  run rm -f "$BINDIR/clipdeck.new"
+  if [ "$BACKUP_D" = 1 ]; then
+    run mv -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeckd"
+  else
+    run rm -f "$BINDIR/clipdeckd"
+  fi
+  [ "$BACKUP_C" = 1 ] && run rm -f "$BINDIR/clipdeck.old"
+  die "could not install clipdeck; restored prior binaries"
+fi
+
+run rm -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeck.old"
 
 if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null 2>&1; then
   run install -d "$UNIT_DIR"
