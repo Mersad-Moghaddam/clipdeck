@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,7 +87,9 @@ func main() {
 	case "status":
 		runStatus(cfg)
 	case "doctor":
-		runDoctor(cfg)
+		if !runDoctor(cfg, os.Stdout) {
+			os.Exit(1)
+		}
 	case "dev":
 		runDev(cfg, subcmdArgs)
 	case "clear":
@@ -171,9 +174,9 @@ func runStatus(cfg *config.Config) {
 	fmt.Printf("  Storage Size: %.2f MB\n", float64(status.DBSizeBytes)/(1024*1024))
 }
 
-func runDoctor(cfg *config.Config) {
-	fmt.Printf("ClipDeck Doctor — Diagnostic Suite\n")
-	fmt.Printf("==================================\n\n")
+func runDoctor(cfg *config.Config, out io.Writer) bool {
+	fmt.Fprintf(out, "ClipDeck Doctor — Diagnostic Suite\n")
+	fmt.Fprintf(out, "==================================\n\n")
 
 	type checkItem struct {
 		Name     string
@@ -184,7 +187,39 @@ func runDoctor(cfg *config.Config) {
 
 	var checks []checkItem
 
-	// 1. Dependency checks
+	// 1. Session & Protocol checks
+	waylandDisplay := os.Getenv("WAYLAND_DISPLAY")
+	desktop := os.Getenv("XDG_CURRENT_DESKTOP")
+	sessionMsg := "Wayland active (" + waylandDisplay + ")"
+	if desktop != "" {
+		sessionMsg += " on " + desktop
+	}
+	sessionPassed := waylandDisplay != ""
+	if !sessionPassed {
+		sessionMsg = "WAYLAND_DISPLAY unset; clipboard monitoring requires a Wayland session"
+	}
+	checks = append(checks, checkItem{
+		Name:     "Session / Wayland",
+		Required: false,
+		Passed:   sessionPassed,
+		Message:  sessionMsg,
+	})
+
+	hyprSig := os.Getenv("HYPRLAND_INSTANCE_SIGNATURE")
+	attrMsg := "unavailable in this session (app exclusions will not match window class)"
+	attrPassed := false
+	if hyprSig != "" {
+		attrMsg = "active via hyprctl (Hyprland session detected)"
+		attrPassed = true
+	}
+	checks = append(checks, checkItem{
+		Name:     "Source App Attribution",
+		Required: false,
+		Passed:   attrPassed,
+		Message:  attrMsg,
+	})
+
+	// 2. Dependency checks
 	binaries := []struct {
 		bin      string
 		required bool
@@ -215,6 +250,25 @@ func runDoctor(cfg *config.Config) {
 			Message:  msg,
 		})
 	}
+
+	// 3. Menu Selectors for clipdeck pick
+	var foundMenus []string
+	for _, m := range []string{"fuzzel", "wofi", "rofi", "dmenu", "fzf"} {
+		if p, err := exec.LookPath(m); err == nil {
+			foundMenus = append(foundMenus, m+" ("+p+")")
+		}
+	}
+	menuMsg := "none found (install fuzzel, wofi, rofi, dmenu, or fzf for clipdeck pick)"
+	menuPassed := len(foundMenus) > 0
+	if menuPassed {
+		menuMsg = strings.Join(foundMenus, ", ")
+	}
+	checks = append(checks, checkItem{
+		Name:     "Menu Selectors (clipdeck pick)",
+		Required: false,
+		Passed:   menuPassed,
+		Message:  menuMsg,
+	})
 
 	// 2. Directory & Permission checks
 	dirs := []struct {
@@ -313,16 +367,16 @@ func runDoctor(cfg *config.Config) {
 				statusStr = "[ WARN ]"
 			}
 		}
-		fmt.Printf("%-8s %-30s %s\n", statusStr, c.Name, c.Message)
+		fmt.Fprintf(out, "%-8s %-30s %s\n", statusStr, c.Name, c.Message)
 	}
 
-	fmt.Println()
+	fmt.Fprintln(out)
 	if allPassed {
-		fmt.Println("Result: All required checks passed successfully.")
+		fmt.Fprintln(out, "Result: All required checks passed successfully.")
 	} else {
-		fmt.Println("Result: Some required checks failed. Please review above.")
-		os.Exit(1)
+		fmt.Fprintln(out, "Result: Some required checks failed. Please review above.")
 	}
+	return allPassed
 }
 
 // devSeedJSON must stay a raw literal with real newlines — an escaped
