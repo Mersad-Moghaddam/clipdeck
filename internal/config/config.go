@@ -25,16 +25,29 @@ type CaptureConfig struct {
 	MaxTextBytes  int64    `toml:"max_text_bytes"`
 	MaxImageBytes int64    `toml:"max_image_bytes"`
 	ExcludedApps  []string `toml:"excluded_apps"`
-	DebounceMs    int      `toml:"debounce_ms"`
+
+	// DebounceMs is the echo-suppression window: duplicate ingests of the
+	// same content within the window are dropped instead of resaving and
+	// rebroadcasting (kill switch for the text+image watcher double fire).
+	DebounceMs int `toml:"debounce_ms"` // floored at 250 at runtime
 }
 
 type PrivacyConfig struct {
+	// AutoMaskSensitive is currently reserved: masking is always-on for the
+	// detectors below (removing the flag would change privacy behavior).
 	AutoMaskSensitive bool `toml:"auto_mask_sensitive"`
 	SensitiveTTLSec   int  `toml:"sensitive_ttl_sec"`
-	CheckLuhn         bool `toml:"check_luhn"`
-	CheckAPIKeys      bool `toml:"check_api_keys"`
-	CheckPrivateKeys  bool `toml:"check_private_keys"`
-	FetchLinkTitles   bool `toml:"fetch_link_titles"`
+
+	// The detector toggles are still being wired (v0.2.3); today every
+	// detector runs unconditionally. Reserved flags are accepted so configs
+	// keep validating.
+	CheckLuhn        bool `toml:"check_luhn"`        // reserved, always-on
+	CheckAPIKeys     bool `toml:"check_api_keys"`    // reserved, always-on
+	CheckPrivateKeys bool `toml:"check_private_keys"` // reserved, always-on
+
+	// FetchLinkTitles stays strictly false by default (PRD §9) and is not
+	// implemented yet; the daemon never performs network fetches.
+	FetchLinkTitles bool `toml:"fetch_link_titles"`
 }
 
 type IPCConfig struct {

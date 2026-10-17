@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -176,6 +177,16 @@ func ExpandSnippet(template string, clipboardContent string) string {
 	return res
 }
 
+// capitalizeWord upper-cases the FIRST RUNE and lower-cases the rest, never
+// slicing through multi-byte characters.
+func capitalizeWord(w string) string {
+	if w == "" {
+		return w
+	}
+	first, size := utf8.DecodeRuneInString(w)
+	return strings.ToUpper(string(first)) + strings.ToLower(w[size:])
+}
+
 func toCamelCase(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -190,10 +201,7 @@ func toCamelCase(s string) string {
 	var sb strings.Builder
 	sb.WriteString(strings.ToLower(parts[0]))
 	for i := 1; i < len(parts); i++ {
-		p := parts[i]
-		if len(p) > 0 {
-			sb.WriteString(strings.ToUpper(p[:1]) + strings.ToLower(p[1:]))
-		}
+		sb.WriteString(capitalizeWord(parts[i]))
 	}
 	return sb.String()
 }
@@ -215,9 +223,7 @@ func toKebabCase(s string) string {
 func toTitle(s string) string {
 	words := strings.Fields(s)
 	for i, w := range words {
-		if len(w) > 0 {
-			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
-		}
+		words[i] = capitalizeWord(w)
 	}
 	return strings.Join(words, " ")
 }

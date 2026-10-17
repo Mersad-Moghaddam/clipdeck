@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -119,8 +120,10 @@ func Check(content string, mimeTypes []string, sourceApp string, excludedApps []
 		}
 	}
 
-	// 7. High-entropy single-token string check
-	if len(trimmed) >= 32 && len(trimmed) <= 128 && !strings.ContainsAny(trimmed, " \t\n") {
+	// 7. High-entropy single-token string check (rune-based: multibyte
+	// scripts must not lose their entropy to byte-length averaging)
+	runes := utf8.RuneCountInString(trimmed)
+	if runes >= 32 && runes <= 128 && !strings.ContainsAny(trimmed, " \t\n") {
 		if shannonEntropy(trimmed) > 4.5 {
 			return CheckResult{
 				IsSensitive: true,
@@ -159,11 +162,23 @@ func MaskCard(s string) string {
 func extractDigits(s string) string {
 	var sb strings.Builder
 	for _, r := range s {
+		// Normalize Persian/Arabic-Indic digits to ASCII so the card/Luhn
+		// math below works on any locale's digits.
+		if ascii, ok := unicodeDigits[r]; ok {
+			r = ascii
+		}
 		if unicode.IsDigit(r) {
 			sb.WriteRune(r)
 		}
 	}
 	return sb.String()
+}
+
+var unicodeDigits = map[rune]rune{
+	'۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+	'۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
+	'٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+	'٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
 }
 
 func isPaymentCard(s string) bool {
@@ -204,7 +219,7 @@ func shannonEntropy(s string) float64 {
 		freq[r]++
 	}
 
-	length := float64(len(s))
+	length := float64(utf8.RuneCountInString(s))
 	var entropy float64
 	for _, count := range freq {
 		p := count / length

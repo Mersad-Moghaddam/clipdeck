@@ -3,7 +3,9 @@ package ipc
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -58,7 +60,6 @@ type Server struct {
 	clients   map[net.Conn]bool
 	clientsMu sync.Mutex
 	startTime time.Time
-	paused    bool
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
@@ -137,9 +138,12 @@ func (s *Server) acceptLoop() {
 			case <-s.ctx.Done():
 				return
 			default:
-				log.Printf("IPC accept error: %v", err)
-				return
 			}
+			// A dead accept loop leaves the socket file lying around with
+			// nobody serving it — every client would just time out. Exiting
+			// lets the systemd unit restart the daemon into a known state.
+			log.Printf("IPC accept failed fatally: %v; exiting", err)
+			os.Exit(1)
 		}
 
 		unixConn, ok := conn.(*net.UnixConn)
@@ -221,13 +225,61 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
+// writeTimeout bounds every IPC write: a client that stops reading (stalled
+// GUI, wedged watcher) must not be able to block broadcasts for everyone
+// else for unbounded time.
+const writeTimeout = 2 * time.Second
+
+// writeWithTimeout performs one write under a write deadline and closes the
+// connection when it times out or errors. The reader goroutine's deferred
+// cleanup removes it from the client set.
+func (s *Server) writeWithTimeout(conn net.Conn, data []byte) error {
+	defer func() { _ = conn.SetWriteDeadline(time.Time{}) }()
+
+	_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	_, err := conn.Write(data)
+	if err != nil {
+		_ = conn.Close() // wedged or gone; reader loop notices and exits
+	}
+	return err
+}
+
 func (s *Server) sendResponse(conn net.Conn, resp Response) {
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return
 	}
 	data = append(data, '\n')
-	_, _ = conn.Write(data)
+	_ = s.writeWithTimeout(conn, data)
+}
+
+// maxListStream bytes bound per-item content/rich-preview fields in list and
+// search responses so a 200-item payload stays far below the 10 MiB IPC
+// line limit even with multi-hundred-KB clips. Full text keeps coming from
+// the id-based copy/paste/get/transform paths.
+const (
+	maxListStreamContent = 16 * 1024
+	maxListStreamRich    = 8 * 1024
+)
+
+func trimToMax(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := s[:max]
+	// Back off past any cut-through UTF-8 continuation bytes.
+	for len(cut) > 0 && (cut[len(cut)-1]&0xC0) == 0x80 {
+		cut = cut[:len(cut)-1]
+	}
+	return cut + "\u2026"
+}
+
+func slimForList(items []store.Item) []store.Item {
+	for i := range items {
+		items[i].Content = trimToMax(items[i].Content, maxListStreamContent)
+		items[i].RichPreview = trimToMax(items[i].RichPreview, maxListStreamRich)
+	}
+	return items
 }
 
 func (s *Server) Broadcast(eventName string, data any) {
@@ -240,7 +292,7 @@ func (s *Server) Broadcast(eventName string, data any) {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
 	for conn := range s.clients {
-		_, _ = conn.Write(msg)
+		_ = s.writeWithTimeout(conn, msg)
 	}
 }
 
@@ -285,12 +337,21 @@ func (s *Server) handleStatus() (any, *RPCError) {
 
 	return map[string]any{
 		"version":        Version,
-		"paused":         s.paused,
+		"paused":         s.isPaused(),
 		"total_items":    total,
 		"pinned_items":   pinned,
 		"db_size_bytes":  sizeBytes,
 		"uptime_seconds": int64(time.Since(s.startTime).Seconds()),
 	}, nil
+}
+
+// isPaused reads pause state from the capturer — the single source of truth
+// (excluding this file avoids a second mutable copy and its data race).
+func (s *Server) isPaused() bool {
+	if s.capturer == nil {
+		return false
+	}
+	return s.capturer.IsPaused()
 }
 
 type ListParams struct {
@@ -314,7 +375,7 @@ func (s *Server) handleList(params json.RawMessage) (any, *RPCError) {
 	}
 
 	return map[string]any{
-		"items": items,
+		"items": slimForList(items),
 		"total": total,
 	}, nil
 }
@@ -340,7 +401,7 @@ func (s *Server) handleSearch(params json.RawMessage) (any, *RPCError) {
 	}
 
 	return map[string]any{
-		"items": items,
+		"items": slimForList(items),
 		"total": total,
 	}, nil
 }
@@ -357,10 +418,10 @@ func (s *Server) handleGet(params json.RawMessage) (any, *RPCError) {
 
 	item, err := s.store.GetItem(p.ID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &RPCError{Code: -32004, Message: "Item not found"}
+		}
 		return nil, &RPCError{Code: -32000, Message: err.Error()}
-	}
-	if item == nil {
-		return nil, &RPCError{Code: -32004, Message: "Item not found"}
 	}
 
 	return map[string]any{"item": item}, nil
@@ -432,7 +493,6 @@ func (s *Server) handlePause(params json.RawMessage) (any, *RPCError) {
 		return nil, &RPCError{Code: -32602, Message: "Invalid params: " + err.Error()}
 	}
 
-	s.paused = p.Paused
 	if s.capturer != nil {
 		s.capturer.SetPaused(p.Paused)
 	}

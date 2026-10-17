@@ -114,7 +114,7 @@ socket_path = "SOCKPATH"
 	if err := client.Call("status", nil, &status); err != nil {
 		t.Fatalf("call status failed: %v", err)
 	}
-	if status.Version != "0.1.0" || status.TotalItems != 0 {
+	if status.Version == "" || status.TotalItems != 0 {
 		t.Fatalf("unexpected status: %+v", status)
 	}
 

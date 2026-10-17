@@ -80,11 +80,11 @@ func GenerateThumbnail(data []byte, thumbsDir string, maxDim int) (*ImageInfo, e
 		}, nil
 	}
 
-	tmpPath := thumbPath + ".tmp"
-	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	f, err := os.CreateTemp(thumbsDir, thumbFilename+".tmp-*")
 	if err != nil {
 		return nil, err
 	}
+	tmpPath := f.Name()
 
 	if err := png.Encode(f, dstImg); err != nil {
 		f.Close()

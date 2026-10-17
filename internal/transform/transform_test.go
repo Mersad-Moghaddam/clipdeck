@@ -82,7 +82,6 @@ func TestPersianTransforms(t *testing.T) {
 			want:   "کتاب‌ها و یادداشت‌های من",
 		},
 	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := Transform(tc.input, tc.action)
@@ -94,6 +93,55 @@ func TestPersianTransforms(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Title/Camel casing used to slice the first BYTE of a rune, corrupting any
+// word whose first character encodes in more than one byte (Persian, emoji…).
+func TestRuneSafeTitleAndCamel(t *testing.T) {
+	t.Run("title keeps Persian intact", func(t *testing.T) {
+		got, err := Transform("سلام دنیای کاربر خوب", "title")
+		if err != nil {
+			t.Fatalf("Transform: %v", err)
+		}
+		want := "سلام دنیای کاربر خوب"
+		if got != want {
+			t.Fatalf("Persian title corrupted: got %q", got)
+		}
+	})
+
+	t.Run("title preserves prespaced emoji and text", func(t *testing.T) {
+		got, err := Transform("hello 🚀 world", "title")
+		if err != nil {
+			t.Fatalf("Transform: %v", err)
+		}
+		if got != "Hello 🚀 World" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("camel keeps Persian intact", func(t *testing.T) {
+		got, err := Transform("سلام دنیا naïve советы", "camel")
+		if err != nil {
+			t.Fatalf("Transform: %v", err)
+		}
+		// Script letters without case (Persian) pass through unchanged;
+		// cased scripts get a rune-safe first-letter upper; separators are
+		// deliberately removed by camel casing. Never invalid UTF-8.
+		want := "سلام" + "دنیا" + "Naïve" + "Советы"
+		if got != want {
+			t.Fatalf("camel output corrupted: got %q want %q", got, want)
+		}
+	})
+
+	t.Run("snake remains ascii-correct", func(t *testing.T) {
+		got, err := Transform("helloWorld Foo-Bar", "snake")
+		if err != nil {
+			t.Fatalf("Transform: %v", err)
+		}
+		if got != "hello_world_foo_bar" {
+			t.Fatalf("got %q", got)
+		}
+	})
 }
 
 func TestMergeAndSnippets(t *testing.T) {

@@ -24,7 +24,7 @@ var (
 	versionFlag   = flag.Bool("version", false, "Print version and exit")
 )
 
-var version = "0.2.1"
+var version = "0.2.2"
 
 func main() {
 	flag.Parse()
@@ -52,6 +52,13 @@ func main() {
 	}
 	defer st.Close()
 
+	// Expire sensitive history synchronously before serving anything: an
+	// expired token must not be readable by the first IPC client ahead of the
+	// 30s maintenance tick.
+	if purged, err := st.PurgeExpired(); err == nil && purged > 0 {
+		log.Printf("Startup purge removed %d expired sensitive items", purged)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -68,6 +75,11 @@ func main() {
 			srv.Broadcast(event, item)
 		}
 	})
+	// Pause state persists across restarts (production/dev paths isolated).
+	cap.SetPauseStateFile(capture.PauseStateFile(*profileFlag))
+	if restored := cap.RestorePauseState(capture.PauseStateFile(*profileFlag)); restored {
+		log.Printf("Capture starts in PAUSED state (persisted)")
+	}
 
 	srv = ipc.NewServer(cfg, st, cap)
 	if err := srv.Start(); err != nil {
@@ -79,9 +91,14 @@ func main() {
 
 	if !*noCaptureFlag {
 		log.Printf("Starting clipboard watcher...")
-		if err := cap.Start(ctx); err != nil {
-			log.Printf("Warning: capture watcher failed to start: %v", err)
-		}
+		// cap.Start blocks until the watchers exit, so it must not run on the
+		// main goroutine: SIGTERM handling below would be unreachable and
+		// systemd would have to SIGKILL a 90s-stuck stop.
+		go func() {
+			if err := cap.Start(ctx); err != nil {
+				log.Printf("Warning: capture watcher failed to start: %v", err)
+			}
+		}()
 	} else {
 		log.Printf("Capture disabled via --no-capture flag")
 	}
@@ -147,8 +164,11 @@ func refreshLegacyMarkup(ctx context.Context, st *store.Store) {
 		for i := range items {
 			res := detect.Detect(items[i].Content)
 			markup := res.RichPreview
-			if res.Type != "code" && res.Type != "json" {
-				markup = "" // nothing to highlight anymore; stop revisiting
+			highlightable := res.Type == "code" || res.Type == "json"
+			// Sensitive clips never carry rich markup (the only sanctioned
+			// reveal is an explicit user read of the plain content).
+			if !highlightable || items[i].Sensitive {
+				markup = "" // nothing to highlight; stop revisiting
 			}
 			if err := st.RefreshRichPreview(items[i].ID, markup); err != nil {
 				log.Printf("Rich preview refresh failed for %s: %v", items[i].ID, err)

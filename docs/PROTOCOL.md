@@ -1,94 +1,160 @@
 # ClipDeck IPC Protocol v1
 
-ClipDeck daemon exposes a Unix Domain Socket at:
-`$XDG_RUNTIME_DIR/clipdeck/clipdeck.sock` (mode 0600)
-For development profile (`--profile dev`):
-`$XDG_RUNTIME_DIR/clipdeck-dev/clipdeck.sock`
+The ClipDeck daemon serves a Unix Domain Socket at:
 
-## Protocol Framing
-- Line-delimited JSON (JSON-Lines). Each request and response is terminated with `\n`.
-- Every client request MUST include:
-  - `id`: unique request identifier string (e.g. `"req-1"`)
-  - `action`: the operation name string
-  - `params`: object with method-specific parameters
+```
+$XDG_RUNTIME_DIR/clipdeck/clipdeck.sock   (mode 0600)
+```
 
-- Every daemon response includes:
-  - `id`: matching the request's `id`
-  - `success`: boolean indicating whether the operation succeeded
-  - `data`: payload object on success
-  - `error`: error message string if `success == false`
+Development profile (`--profile dev`): `$XDG_RUNTIME_DIR/clipdeck-dev/clipdeck.sock`.
+If `XDG_RUNTIME_DIR` is unset the daemon falls back to `/tmp/run-clipdeck/`.
+Every socket write is bounded by a 2-second deadline; slow or wedged clients
+are dropped by the daemon.
 
-- Push events (broadcast from daemon when subscribed):
-  - `event`: event name string (e.g. `"item_added"`, `"item_deleted"`, `"item_pinned"`, `"cleared"`, `"paused"`)
-  - `data`: payload object
+## Framing
 
-## Operations
+Line-delimited JSON (JSON-Lines): every request, response and event is one
+line terminated by `\n`.
 
-### 1. `list`
-Fetch clipboard history with pagination.
-- Parameters:
-  - `limit`: integer (default 50, max 200)
-  - `offset`: integer (default 0)
-- Response:
-  - `items`: array of history items
-  - `total`: total count
-  - `has_more`: boolean
+Request:
 
-### 2. `search`
-Search items across full text and metadata using SQLite FTS5 trigram.
-- Parameters:
-  - `query`: string query (supports filter prefixes like `type:image`, `app:firefox`, `pinned:true`)
-  - `limit`: integer (default 50)
-  - `offset`: integer (default 0)
-- Response:
-  - `items`: array of matched items
-  - `total`: total count
+```json
+{"id": "req-1", "method": "status", "params": {}}
+```
 
-### 3. `pin` / `unpin`
-Toggle pinned status of an item.
-- Parameters:
-  - `id`: string item ID
-- Response:
-  - `pinned`: boolean
+- `id`: unique string; echoed back on the matching response
+- `method`: operation name (see below)
+- `params`: object, method-specific (omit or `{}` when empty)
 
-### 4. `delete`
-Delete a specific item.
-- Parameters:
-  - `id`: string item ID
-- Response:
-  - `deleted`: boolean
+Response:
 
-### 5. `clear`
-Clear unpinned history (pinned items remain unless `include_pinned: true`).
-- Parameters:
-  - `include_pinned`: boolean (default false)
-- Response:
-  - `cleared_count`: integer
+```json
+{"id": "req-1", "result": {...}}
+```
 
-### 6. `pause` / `resume` / `toggle_pause`
-Toggle incognito mode.
-- Parameters: none
-- Response:
-  - `paused`: boolean
+```json
+{"id": "req-1", "error": {"code": -32004, "message": "Item not found"}}
+```
 
-### 7. `status`
-Query daemon status, memory, item count, and incognito status.
-- Response:
-  - `version`: string
-  - `paused`: boolean
-  - `item_count`: integer
-  - `pinned_count`: integer
-  - `uptime_seconds`: integer
+- `result` present when the call succeeds, `error` when it fails
+- error codes: `-32700` parse error, `-32601` unknown method,
+  `-32602` invalid params, `-32000` store/IO failure,
+  `-32004` item not found
 
-### 8. `transform`
-Apply a text transformation on an item or raw string.
-- Parameters:
-  - `text`: string input
-  - `transform`: string (`uppercase`, `lowercase`, `camel`, `snake`, `trim`, `json_pretty`, `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `sort_lines`, `dedupe_lines`, `persian_digits_to_latin`, `latin_digits_to_persian`, `arabic_to_persian_letters`, `normalize_zwnj`)
-- Response:
-  - `result`: string
+Events (one JSON object per line, has `"event"` instead of `"id"`, clients
+skip lines that don't match their pending request id):
 
-### 9. `subscribe`
-Subscribe to live push events.
-- Response:
-  - `subscribed`: true
+```json
+{"event": "item_added", "data": { ... full item ... }}
+```
+
+| Event            | Payload                                     |
+|------------------|---------------------------------------------|
+| `item_added`     | full item (also fired on dedupe re-copy bump) |
+| `item_deleted`   | `{id}`                                      |
+| `pin_changed`    | `{id, pinned}`                              |
+| `history_cleared`| `{deleted}`                                 |
+| `items_purged`   | `{count}` (expired sensitive items)         |
+| `pause_changed`  | `{paused}`                                  |
+
+## Item shape
+
+```json
+{
+  "id": "c9282aef…",
+  "hash": "…",
+  "type": "text|code|json|url|email|phone|color|image|file|card",
+  "mime": "text/plain",
+  "content": "full text (images: blob accessor path)",
+  "preview": "short preview line (masked when sensitive)",
+  "rich_preview": "HTML-like markup with class=\"t-…\" spans (absent for sensitive items)",
+  "blob_path": "/…/blobs/<sha256>.png",
+  "thumbnail_path": "/…/thumbs/<sha256>_thumb.png",
+  "source_app": "kitty",
+  "pinned": false,
+  "pinned_at": 0,
+  "sensitive": false,
+  "masked_content": "",
+  "expires_at": 0,
+  "size_bytes": 123,
+  "created_at": "2026-10-17T09:41:00+03:30",
+  "updated_at": "2026-10-17T09:41:00+03:30"
+}
+```
+
+In `list`/`search` responses, `content` is capped at 16 KiB and
+`rich_preview` at 8 KiB so a streaming page can never exceed the daemon's
+10 MiB per-line scan limit; the `get` RPC always returns the full content.
+
+## Methods
+
+### `ping`
+→ `{pong: true}`
+
+### `status`
+Params: none.
+→ `{version, paused, total_items, pinned_items, db_size_bytes, uptime_seconds}`
+
+### `list`
+Params: `{limit (default 50), offset (default 0)}`.
+→ `{items[], total}` ordered `pinned DESC, updated_at DESC`.
+
+### `search`
+Params: `{query, limit (default 50), offset}`.
+Query prefixes: `type:<type>`, `app:<substring>`, plus the bare word
+`pinned` (or `pinned:true`) to restrict to pinned items. Free text runs
+through the FTS5 trigram index; queries shorter than 3 characters fall back
+to a substring `LIKE` match so one- and two-character prefixes work.
+→ `{items[], total}`
+
+### `get`
+Params: `{id}`.
+→ `{item}` (full content, no caps). Error `-32004` for unknown ids.
+
+### `pin`
+Params: `{id, pinned}` (explicit boolean, replaces `pin`/`unpin` methods).
+→ `{success: true}`; emits `pin_changed`.
+
+### `delete`
+Params: `{id}`.
+→ `{success: true}`; emits `item_deleted`. Blob/thumbnail files are reaped
+only once the last referencing item is gone.
+
+### `clear`
+Params: `{include_pinned (default false)}`.
+→ `{success: true, deleted}`; emits `history_cleared`.
+
+### `pause`
+Params: `{paused}`.
+→ `{paused}`; emits `pause_changed`. State is persisted under
+`$XDG_STATE_HOME/clipdeck/paused` and restored on daemon restart.
+
+### `copy`
+Params: `{id, plain (bool), transform (optional action name)}`.
+Copies the item's content (or image blob) to the clipboard.
+
+### `paste`
+Params: `{id, plain, transform}`.
+Copy plus a direct paste dispatch into the focused window
+(`{success: true}`).
+
+### `transform`
+Params: `{id (item), text (raw — use one of the two), action}`.
+→ `{text}` — transformed result. Actions: `uppercase`, `lowercase`,
+`title`, `camel`, `snake`, `kebab`, `trim`, `json_pretty`, `base64_encode`,
+`base64_decode`, `url_encode`, `url_decode`, `sort_lines`, `dedupe_lines`,
+`persian_digits_to_latin`, `latin_digits_to_persian`,
+`arabic_digits_to_persian`, `arabic_to_persian_letters`, `normalize_zwnj`,
+`persian_all`.
+
+### `merge`
+Params: `{ids[], separator (default "\n"), action: "preview"|"copy"|"paste"}`.
+→ `{text}` of the merged content; copies (and optionally dispatches paste)
+as requested.
+
+## Clients
+
+- **CLI** (`clipdeck`): `status`, `doctor`, `clear`, `export`, `import`,
+  `import-cliphist`, `pause`, `dev seed` (dev profile only), `version`.
+- **Omarchy plugin** connects to the same socket and consumes every event
+  above plus `status`/`pause` replies (see `omarchy-clipdeck`).

@@ -28,7 +28,7 @@ var (
 	configFlag  = flag.String("config", "", "Path to custom config file")
 )
 
-var version = "0.2.1"
+var version = "0.2.2"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -53,7 +53,10 @@ func main() {
 		} else if strings.HasPrefix(args[i], "--config=") || strings.HasPrefix(args[i], "-config=") {
 			*configFlag = strings.TrimPrefix(strings.TrimPrefix(args[i], "--config="), "-config=")
 		} else if strings.HasPrefix(args[i], "-") {
-			// Other flag before subcommand
+			// Unknown flag: fail loudly instead of silently swallowing it —
+			// users must be able to trust CLI exit codes.
+			fmt.Fprintf(os.Stderr, "Unknown flag: %s\nUsage: clipdeck [--profile dev] [--config file] <command>\n", args[i])
+			os.Exit(1)
 		} else if subcmd == "" {
 			subcmd = args[i]
 			subcmdArgs = args[i+1:]
@@ -67,7 +70,12 @@ func main() {
 
 	cfg := config.DefaultConfig(*profileFlag)
 	if *configFlag != "" {
-		if loadedCfg, err := config.LoadConfig(*configFlag, *profileFlag); err == nil {
+		loadedCfg, err := config.LoadConfig(*configFlag, *profileFlag)
+		if err != nil {
+			// Don't silently fall back to defaults — a malformed config must
+			// never pretend to be a working one.
+			fmt.Fprintf(os.Stderr, "Warning: config %s is malformed (%v); using defaults\n", *configFlag, err)
+		} else {
 			cfg = loadedCfg
 		}
 	}
@@ -312,10 +320,30 @@ func runDoctor(cfg *config.Config) {
 	}
 }
 
+// devSeedJSON must stay a raw literal with real newlines — an escaped
+// "\n"-in-backticks variant once seeded broken pseudo-JSON items.
+const devSeedJSON = `{
+  "name": "omarchy-clipdeck",
+  "version": "0.2.2",
+  "status": "production-ready",
+  "stars": 128
+}`
+
+// isDevSeedProfile is the single gate: without an explicit dev profile the
+// seed must refuse to run, since it writes into the configured data dir.
+func isDevSeedProfile(profile string) bool {
+	return profile == "dev"
+}
+
 func runDev(cfg *config.Config, args []string) {
 	if len(args) == 0 || args[0] != "seed" {
 		fmt.Println("Usage: clipdeck dev seed")
 		return
+	}
+
+	if !isDevSeedProfile(*profileFlag) {
+		fmt.Fprintln(os.Stderr, "Refusing to seed: `clipdeck dev seed` only runs with `--profile dev` to protect your real history.")
+		os.Exit(1)
 	}
 
 	st, err := store.Open(cfg.Storage.DataDir)
@@ -352,8 +380,7 @@ print([fibonacci(i) for i in range(10)])`
 	saveSynthetic(st, pyCode, "kitty", false, now.Add(-8*time.Minute))
 
 	// 4. JSON
-	jsonContent := `{\n  "name": "omarchy-clipdeck",\n  "version": "0.2.1",\n  "status": "production-ready",\n  "stars": 128\n}`
-	saveSynthetic(st, jsonContent, "firefox", false, now.Add(-7*time.Minute))
+	saveSynthetic(st, devSeedJSON, "firefox", false, now.Add(-7*time.Minute))
 
 	// 5. Color hex & rgb
 	saveSynthetic(st, "#e06c75", "gcolor3", true, now.Add(-6*time.Minute))
@@ -582,6 +609,9 @@ func runImport(cfg *config.Config, args []string) {
 
 	imported := 0
 	for _, item := range items {
+		// Exports are untrusted: neutralize arbitrary blob paths so future
+		// deletes can never act on foreign files.
+		st.SanitizeImportedItem(&item)
 		if err := st.SaveItem(&item); err == nil {
 			imported++
 		}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -28,6 +29,15 @@ type Capturer struct {
 	onEvent func(event string, item *store.Item)
 	mu      sync.RWMutex
 	snapMu  sync.Mutex // serializes snapshots between the text and image watchers
+
+	// Echo suppression: the text and image watchers both wake on the same
+	// selection change, so identical content can reach the ingest path twice
+	// in quick succession. The second ingest must not re-save/re-broadcast.
+	lastEchoHash string
+	lastEchoAt   time.Time
+
+	// Optional pause-state persistence (paths set by the daemon entrypoint).
+	pauseStateFile string
 }
 
 func New(cfg *config.Config, s *store.Store, onEvent func(string, *store.Item)) *Capturer {
@@ -41,6 +51,7 @@ func New(cfg *config.Config, s *store.Store, onEvent func(string, *store.Item)) 
 func (c *Capturer) SetPaused(paused bool) {
 	c.mu.Lock()
 	c.paused = paused
+	c.persistPauseStateLocked()
 	c.mu.Unlock()
 }
 
@@ -48,6 +59,28 @@ func (c *Capturer) IsPaused() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.paused
+}
+
+// isDuplicateEcho reports whether `hash` was already ingested inside the
+// debounce window, and records it otherwise. Call it once per candidate item
+// right after hashing: snapshots are cheap to repeat, store writes and
+// broadcasts are not. The window floor keeps two watcher events of the same
+// selection coalesced even when a snapshot is slow.
+func (c *Capturer) isDuplicateEcho(hash string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	windowMs := c.cfg.Capture.DebounceMs
+	if windowMs < 250 {
+		windowMs = 250
+	}
+
+	if c.lastEchoHash == hash && time.Since(c.lastEchoAt) < time.Duration(windowMs)*time.Millisecond {
+		return true
+	}
+	c.lastEchoHash = hash
+	c.lastEchoAt = time.Now()
+	return false
 }
 
 func (c *Capturer) Start(ctx context.Context) error {
@@ -150,14 +183,24 @@ func (c *Capturer) ProcessTextContent(text string, mimeTypes []string, sourceApp
 
 	hash := sha256Hex(text)
 
+	// Same selection losely-duplicated by both watchers inside the window:
+	// skip the redundant save + broadcast.
+	if c.isDuplicateEcho(hash) {
+		return nil, nil
+	}
+
 	var expiresAt int64 = 0
 	if sensCheck.IsSensitive {
 		expiresAt = time.Now().Unix() + int64(c.cfg.Privacy.SensitiveTTLSec)
 	}
 
 	preview := det.Preview
+	richPreview := det.RichPreview
 	if sensCheck.IsSensitive {
 		preview = sensCheck.MaskedText
+		// Sensitive code/json must not ship raw content as rich markup; the
+		// only sanctioned reveal is an explicit user action.
+		richPreview = ""
 	}
 
 	item := &store.Item{
@@ -166,7 +209,7 @@ func (c *Capturer) ProcessTextContent(text string, mimeTypes []string, sourceApp
 		Mime:          "text/plain",
 		Content:       text,
 		Preview:       preview,
-		RichPreview:   det.RichPreview,
+		RichPreview:   richPreview,
 		SourceApp:     sourceApp,
 		Sensitive:     sensCheck.IsSensitive,
 		MaskedContent: sensCheck.MaskedText,
@@ -200,10 +243,15 @@ func (c *Capturer) ProcessImageContent(data []byte, mime string, sourceApp strin
 	}
 
 	ext := "png"
-	if strings.Contains(mime, "jpeg") || strings.Contains(mime, "jpg") {
+	switch {
+	case strings.Contains(mime, "jpeg") || strings.Contains(mime, "jpg"):
 		ext = "jpg"
-	} else if strings.Contains(mime, "webp") {
+	case strings.Contains(mime, "webp"):
 		ext = "webp"
+	case strings.Contains(mime, "gif"):
+		ext = "gif"
+	case strings.Contains(mime, "bmp"):
+		ext = "bmp"
 	}
 
 	blobPath, err := c.store.SaveBlob(data, ext)
@@ -221,6 +269,10 @@ func (c *Capturer) ProcessImageContent(data []byte, mime string, sourceApp strin
 	}
 
 	hash := sha256BytesHex(data)
+
+	if c.isDuplicateEcho(hash) {
+		return nil, nil
+	}
 
 	item := &store.Item{
 		Hash:          hash,
@@ -250,6 +302,12 @@ func (c *Capturer) SnapshotCurrent() (*store.Item, error) {
 	cmd := exec.Command("wl-paste", "--list-types")
 	out, err := cmd.Output()
 	if err != nil {
+		// wl-paste exits 1 when there is no selection (empty clipboard): a
+		// normal transient state, not an error worth a log line per event.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -280,8 +338,9 @@ func (c *Capturer) SnapshotCurrent() (*store.Item, error) {
 		}
 	}
 
-	// Check URI list (files)
-	if typeMap["text/uri-list"] {
+	// Check URI list (files) — but only while capture is running; the inline
+	// item build below has no other pause guard.
+	if typeMap["text/uri-list"] && !c.IsPaused() {
 		fileCmd := exec.Command("wl-paste", "--type", "text/uri-list")
 		data, err := fileCmd.Output()
 		if err == nil && len(data) > 0 {
@@ -303,6 +362,11 @@ func (c *Capturer) SnapshotCurrent() (*store.Item, error) {
 					preview = validPaths[0]
 				}
 				hash := sha256Hex(content)
+
+				if c.isDuplicateEcho(hash) {
+					return nil, nil
+				}
+
 				win, _ := hypr.GetActiveWindow()
 				sourceApp := hypr.SanitizeAppClass(win.Class)
 

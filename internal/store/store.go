@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
@@ -206,8 +207,7 @@ func (s *Store) SaveItem(item *Item) error {
 }
 
 func (s *Store) SaveBlob(data []byte, ext string) (string, error) {
-	hash := sha256.Sum256(data)
-	hashHex := hex.EncodeToString(hash[:])
+	hashHex := hashContent(string(data))
 	fileName := hashHex
 	if ext != "" {
 		if !strings.HasPrefix(ext, ".") {
@@ -293,6 +293,13 @@ func (s *Store) SearchItems(query string, limit, offset int) ([]Item, int, error
 	}
 
 	freeText := strings.Join(terms, " ")
+
+	// FTS5's trigram tokenizer needs at least 3 runes; a 1-2 rune query can
+	// never match and silently returns nothing. Route short queries to the
+	// LIKE fallback so one-character prefixes stay useful.
+	if freeText != "" && utf8.RuneCountInString(freeText) < 3 {
+		return s.searchFallback(freeText, typeFilter, appFilter, pinnedOnly, limit, offset)
+	}
 
 	whereClauses := []string{}
 	args := []interface{}{}
@@ -419,6 +426,34 @@ func (s *Store) searchFallback(text, typeFilter, appFilter string, pinnedOnly bo
 	return items, total, nil
 }
 
+// SanitizeImportedItem neutralizes hostile or stale file references coming
+// from an untrusted history export: blob/thumbnail paths are kept only when
+// they live inside this store's managed dirs AND the file still exists —
+// otherwise the row degrades to a plain item. An empty imported hash is
+// derived from content so dedupe stays meaningful.
+func (s *Store) SanitizeImportedItem(item *Item) {
+	keep := func(path string) bool {
+		if path == "" {
+			return false
+		}
+		if !strings.HasPrefix(path, s.blobsDir+string(os.PathSeparator)) &&
+			!strings.HasPrefix(path, s.thumbsDir+string(os.PathSeparator)) {
+			return false
+		}
+		_, err := os.Stat(path)
+		return err == nil
+	}
+	if !keep(item.BlobPath) {
+		item.BlobPath = ""
+	}
+	if !keep(item.ThumbnailPath) {
+		item.ThumbnailPath = ""
+	}
+	if item.Hash == "" {
+		item.Hash = hashContent(item.Content)
+	}
+}
+
 func (s *Store) GetItem(id string) (*Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -461,7 +496,7 @@ func (s *Store) LegacyRichPreviewItems(limit int) ([]Item, error) {
 		limit = 200
 	}
 	rows, err := s.db.Query(
-		`SELECT id, type, content, preview, rich_preview, created_at, updated_at
+		`SELECT id, type, content, preview, rich_preview, sensitive, created_at, updated_at
 		 FROM items
 		 WHERE type IN ('code', 'json')
 		   AND rich_preview <> ''
@@ -476,10 +511,12 @@ func (s *Store) LegacyRichPreviewItems(limit int) ([]Item, error) {
 	var items []Item
 	for rows.Next() {
 		var it Item
+		var sensitiveInt int
 		var createdAtMs, updatedAtMs int64
-		if err := rows.Scan(&it.ID, &it.Type, &it.Content, &it.Preview, &it.RichPreview, &createdAtMs, &updatedAtMs); err != nil {
+		if err := rows.Scan(&it.ID, &it.Type, &it.Content, &it.Preview, &it.RichPreview, &sensitiveInt, &createdAtMs, &updatedAtMs); err != nil {
 			return nil, err
 		}
+		it.Sensitive = sensitiveInt == 1
 		it.CreatedAt = time.UnixMilli(createdAtMs)
 		it.UpdatedAt = time.UnixMilli(updatedAtMs)
 		items = append(items, it)
@@ -510,32 +547,76 @@ func (s *Store) DeleteItem(id string) error {
 		return err
 	}
 
-	if blobPath != "" {
-		_ = os.Remove(blobPath)
-	}
-	if thumbPath != "" {
-		_ = os.Remove(thumbPath)
-	}
+	// Blobs are hash-named and may be referenced by several rows (imported
+	// history, legacy state): only reap files whose last reference just went
+	// away, and never touch paths outside the store's managed dirs.
+	s.gcItemFile(blobPath)
+	s.gcItemFile(thumbPath)
 
 	return nil
+}
+
+// gcItemFile unlinks a store-managed item file only when no remaining row
+// references it. Paths outside the blob/thumb dirs are never unlinked — the
+// row data may come from an imported or hand-edited database.
+func (s *Store) gcItemFile(path string) {
+	if path == "" {
+		return
+	}
+	if !strings.HasPrefix(path, s.blobsDir+string(os.PathSeparator)) &&
+		!strings.HasPrefix(path, s.thumbsDir+string(os.PathSeparator)) {
+		return
+	}
+	var refs int
+	if err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM items WHERE blob_path = ? OR thumbnail_path = ?", path, path,
+	).Scan(&refs); err != nil || refs > 0 {
+		return
+	}
+	_ = os.Remove(path)
+}
+
+// deleteRowsWithGC deletes rows matching a caller-built WHERE fragment over
+// the items table (never user input), then reaps blob/thumb files whose last
+// referencing row disappeared. Used by the bulk delete paths.
+func (s *Store) deleteRowsWithGC(where string, args ...any) (int64, error) {
+	rows, err := s.db.Query("SELECT DISTINCT blob_path, thumbnail_path FROM items WHERE "+where, args...)
+	if err != nil {
+		return 0, err
+	}
+	var paths []string
+	for rows.Next() {
+		var blobPath, thumbPath string
+		if err := rows.Scan(&blobPath, &thumbPath); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		paths = append(paths, blobPath, thumbPath)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+
+	res, err := s.db.Exec("DELETE FROM items WHERE "+where, args...)
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range paths {
+		s.gcItemFile(p)
+	}
+	return res.RowsAffected()
 }
 
 func (s *Store) Clear(includePinned bool) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var query string
 	if includePinned {
-		query = "DELETE FROM items"
-	} else {
-		query = "DELETE FROM items WHERE pinned = 0"
+		return s.deleteRowsWithGC("1 = 1")
 	}
-
-	res, err := s.db.Exec(query)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return s.deleteRowsWithGC("pinned = 0")
 }
 
 func (s *Store) PurgeExpired() (int64, error) {
@@ -543,11 +624,7 @@ func (s *Store) PurgeExpired() (int64, error) {
 	defer s.mu.Unlock()
 
 	now := time.Now().Unix()
-	res, err := s.db.Exec("DELETE FROM items WHERE expires_at > 0 AND expires_at <= ?", now)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return s.deleteRowsWithGC("expires_at > 0 AND expires_at <= ?", now)
 }
 
 func (s *Store) EnforceRetention(maxItems int, maxAgeDays int, maxSizeBytes int64) error {
@@ -557,7 +634,7 @@ func (s *Store) EnforceRetention(maxItems int, maxAgeDays int, maxSizeBytes int6
 	// 1. Purge older than maxAgeDays (pinned exempt)
 	if maxAgeDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -maxAgeDays).UnixMilli()
-		_, _ = s.db.Exec("DELETE FROM items WHERE pinned = 0 AND updated_at < ?", cutoff)
+		_, _ = s.deleteRowsWithGC("pinned = 0 AND updated_at < ?", cutoff)
 	}
 
 	// 2. Limit count to maxItems (pinned exempt)
@@ -566,7 +643,7 @@ func (s *Store) EnforceRetention(maxItems int, maxAgeDays int, maxSizeBytes int6
 		_ = s.db.QueryRow("SELECT COUNT(*) FROM items WHERE pinned = 0").Scan(&unpinnedCount)
 		if unpinnedCount > maxItems {
 			excess := unpinnedCount - maxItems
-			_, _ = s.db.Exec(`DELETE FROM items WHERE id IN (
+			_, _ = s.deleteRowsWithGC(`id IN (
 				SELECT id FROM items WHERE pinned = 0 ORDER BY updated_at ASC LIMIT ?
 			)`, excess)
 		}
@@ -583,7 +660,7 @@ func (s *Store) EnforceRetention(maxItems int, maxAgeDays int, maxSizeBytes int6
 			if err != nil {
 				break // no more unpinned items
 			}
-			_, _ = s.db.Exec("DELETE FROM items WHERE id = ?", oldestID)
+			_, _ = s.deleteRowsWithGC("id = ?", oldestID)
 			totalSize -= itemSize
 		}
 	}
@@ -652,6 +729,14 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// hashContent is the canonical content hash: the hex encoding of the SHA-256
+// digest of a content string (blobs are hashed through the same function so
+// file naming and row hashes share one definition).
+func hashContent(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
 }
 
 // escapeLike neutralizes SQL LIKE metacharacters in user input so that

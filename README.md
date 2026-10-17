@@ -37,14 +37,14 @@ Hyprland IPC (active window)├──▶ clipdeckd (Go) ──▶ SQLite (FTS5) 
 
 ## Install
 
-Prebuilt packages for v0.2.1 are attached to every
+Prebuilt packages for v0.2.2 are attached to every
 [GitHub release](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
 | System | Command |
 |---|---|
-| Debian / Ubuntu | `sudo apt install ./clipdeck_0.2.1_amd64.deb` |
-| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.2.1-1.x86_64.rpm` |
-| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.2.1_x86_64.apk` |
+| Debian / Ubuntu | `sudo apt install ./clipdeck_0.2.2_amd64.deb` |
+| Fedora / RHEL / openSUSE | `sudo dnf install ./clipdeck-0.2.2-1.x86_64.rpm` |
+| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.2.2_x86_64.apk` |
 | Arch (AUR) | `yay -S clipdeck` |
 | Any distro (portable) | `curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh \| bash` |
 
@@ -62,7 +62,7 @@ Arch/Omarchy.
 ## Building from Source
 
 ### Prerequisites
-- Go 1.22+
+- Go 1.27+ (matches `go.mod`)
 - `wl-clipboard` (`wl-paste`, `wl-copy`)
 - `wtype` (optional, for direct paste)
 - `hyprland` (optional, for window context and direct paste fallback)

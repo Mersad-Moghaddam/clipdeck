@@ -80,7 +80,9 @@ fi
 if [ "$VERSION" = "latest" ]; then
   VERSION="$(curl -fSsL --connect-timeout 5 --max-time 15 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
     | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1)" || true
-  [ -n "$VERSION" ] || VERSION="0.2.0"
+  # Never fall back to a stale hardcoded version — silently installing old
+  # binaries is exactly the failure this script exists to prevent.
+  [ -n "$VERSION" ] || die "Could not reach the GitHub API to resolve the latest release; pass an explicit --version instead."
 fi
 say "Installing ClipDeck ${VERSION} (${ARCH}) into ${PREFIX}"
 
