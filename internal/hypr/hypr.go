@@ -1,7 +1,10 @@
 package hypr
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -15,7 +18,16 @@ type ActiveWindowInfo struct {
 }
 
 func GetActiveWindow() (ActiveWindowInfo, error) {
-	cmd := exec.Command("hyprctl", "activewindow", "-j")
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	return getActiveWindow(ctx)
+}
+
+func getActiveWindow(ctx context.Context) (ActiveWindowInfo, error) {
+	if os.Getenv("HYPRLAND_INSTANCE_SIGNATURE") == "" {
+		return ActiveWindowInfo{}, nil
+	}
+	cmd := exec.CommandContext(ctx, "hyprctl", "activewindow", "-j")
 	out, err := cmd.Output()
 	if err != nil {
 		return ActiveWindowInfo{}, err
@@ -34,17 +46,33 @@ func GetActiveWindow() (ActiveWindowInfo, error) {
 }
 
 func PasteDirectly() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return pasteDirectly(ctx)
+}
+
+func pasteDirectly(ctx context.Context) error {
 	// Brief delay to allow overlay to yield focus to the active target window
-	time.Sleep(80 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(80 * time.Millisecond):
+	}
 
 	// First attempt: wtype (standard Wayland virtual keyboard)
-	cmd := exec.Command("wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl")
+	cmd := exec.CommandContext(ctx, "wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl")
 	if err := cmd.Run(); err == nil {
 		return nil
 	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if os.Getenv("HYPRLAND_INSTANCE_SIGNATURE") == "" {
+		return fmt.Errorf("copied; paste injection unavailable in this session")
+	}
 
 	// Fallback: hyprctl dispatch sendshortcut
-	cmd = exec.Command("hyprctl", "dispatch", "sendshortcut", "CTRL,V,activewindow")
+	cmd = exec.CommandContext(ctx, "hyprctl", "dispatch", "sendshortcut", "CTRL,V,activewindow")
 	return cmd.Run()
 }
 

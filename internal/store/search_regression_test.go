@@ -61,3 +61,36 @@ func TestQueryValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryStablePaging(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for i := 0; i < 5; i++ {
+		item := &Item{Hash: fmt.Sprint(i), Type: "text", Mime: "text/plain", Content: "needle", Preview: "needle", SizeBytes: 6}
+		if err := s.SaveItem(item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := map[string]bool{}
+	for offset := 0; offset < 5; offset += 2 {
+		page, err := s.QueryItems(QueryOptions{Query: "needle", Limit: 2, Offset: offset})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range page.Items {
+			if seen[item.ID] {
+				t.Fatal("duplicate page ID")
+			}
+			seen[item.ID] = true
+		}
+		if page.HasMore != (offset < 4) {
+			t.Fatalf("has_more at offset %d", offset)
+		}
+	}
+	if len(seen) != 5 {
+		t.Fatal("lost clips")
+	}
+}

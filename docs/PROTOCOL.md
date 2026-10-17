@@ -158,3 +158,21 @@ as requested.
   `import-cliphist`, `pause`, `dev seed` (dev profile only), `version`.
 - **Omarchy plugin** connects to the same socket and consumes every event
   above plus `status`/`pause` replies (see `omarchy-clipdeck`).
+# Additive query API (v0.4 development)
+
+`query` accepts `{query,types,pinned_only,limit,offset}`. Limit defaults to 50,
+maximum 200; offset must be nonnegative. Explicit type filters intersect
+query-derived filters and are applied before pagination. Returns
+`{items,has_more}`; it does not pretend to provide an exact count. Legacy
+list/search retain their total semantics. `status.capabilities` includes
+`query` when available.
+
+Sensitive query rows replace content and preview with masked_content, clear
+rich previews and blob/thumbnail paths. Trusted local `get`/transform/export
+access remains a separate existing policy; this is display protection, not
+isolation against another process running as the same user.
+
+Paste responses additionally report `copied:true,paste_requested:true`.
+`paste_failed` events contain the item ID and a generic manual-paste hint.
+They do not confirm target-application delivery and are not yet correlated to
+a unique request; clients must not interpret `success` as delivered input.

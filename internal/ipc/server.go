@@ -650,10 +650,12 @@ func (s *Server) handlePaste(params json.RawMessage) (any, *RPCError) {
 
 	// Dispatch paste directly
 	go func() {
-		_ = hypr.PasteDirectly()
+		if err := hypr.PasteDirectly(); err != nil {
+			s.Broadcast("paste_failed", map[string]any{"id": p.ID, "message": "Copied; paste injection unavailable. Paste manually with Ctrl+V."})
+		}
 	}()
 
-	return map[string]any{"success": true}, nil
+	return map[string]any{"success": true, "copied": true, "paste_requested": true}, nil
 }
 
 func copyToClipboard(text, mime string) error {

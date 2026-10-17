@@ -1,9 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"github.com/Mersad-Moghaddam/clipdeck/internal/config"
 	"strings"
 	"testing"
 )
+
+func TestHistoryCommandValidation(t *testing.T) {
+	for _, args := range [][]string{{"pick", "--json"}, {"list", "--paste"}, {"copy", "--tool", "fzf", "id"}, {"unknown"}, {"list", "--limit", "0"}} {
+		var out, diag bytes.Buffer
+		if code := runHistoryCommand(config.DefaultConfig("dev"), args, &out, &diag); code != 2 {
+			t.Errorf("%v: got %d, %s", args, code, diag.String())
+		}
+	}
+}
 
 func TestPickerSanitizesControls(t *testing.T) {
 	got := pickerLabel("hello\nworld\t\x1b[31m\u202esecret")

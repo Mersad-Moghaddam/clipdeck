@@ -35,9 +35,9 @@ run() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --prefix)      PREFIX="$2"; shift 2 ;;
+    --prefix)      [ $# -ge 2 ] || die "--prefix requires a value"; PREFIX="$2"; shift 2 ;;
     --prefix=*)    PREFIX="${1#*=}"; shift ;;
-    --version)     VERSION="$2"; shift 2 ;;
+    --version)     [ $# -ge 2 ] || die "--version requires a value"; VERSION="$2"; shift 2 ;;
     --version=*)   VERSION="${1#*=}"; shift ;;
     --from-source) FROM_SOURCE=1; shift ;;
     --no-service)  SERVICE=0; shift ;;
@@ -77,6 +77,10 @@ if [ "$UNINSTALL" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- resolve version
+if [ "$DRY_RUN" = 1 ]; then
+  say "Dry run: install ${VERSION} (${ARCH}) into ${PREFIX}; service=${SERVICE}; source=${FROM_SOURCE}. No downloads or files changed."
+  exit 0
+fi
 if [ "$VERSION" = "latest" ]; then
   VERSION="$(curl -fSsL --connect-timeout 5 --max-time 15 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
     | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1)" || true
@@ -122,7 +126,7 @@ else
     say "Verifying checksum"
     ( cd "$TMP" && sha256sum -c "$TARBALL.sha256" )
   else
-    warn "no checksum published for this release — skipping verification"
+    die "checksum unavailable; refusing unverified release"
   fi
   run tar --no-same-owner -C "$TMP" -xzf "$TMP/$TARBALL"
 fi

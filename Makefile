@@ -22,7 +22,7 @@ race:
 
 bench:
 	mkdir -p reports
-	go test -bench=. -benchmem ./internal/store > reports/bench-search.txt 2>&1 || true
+	go test -bench=. -benchmem ./internal/store > reports/bench-search.txt 2>&1
 
 lint:
 	go vet ./...

@@ -116,6 +116,7 @@ func (s *Store) migrate() error {
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_items_hash ON items(hash);`,
 		`CREATE INDEX IF NOT EXISTS idx_items_pinned_updated ON items(pinned, updated_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_items_recent_stable ON items(pinned DESC, updated_at DESC, id DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_items_expires_at ON items(expires_at) WHERE expires_at > 0;`,
 		`CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
 			content,

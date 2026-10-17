@@ -45,6 +45,10 @@ func runHistoryCommand(cfg *config.Config, args []string, stdout, stderr io.Writ
 		return 2
 	}
 	command := args[0]
+	if command != "list" && command != "copy" && command != "pick" {
+		fmt.Fprintln(stderr, "Unknown history command")
+		return 2
+	}
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	limit := fs.Int("limit", 50, "maximum items (1..200)")
@@ -56,6 +60,17 @@ func runHistoryCommand(cfg *config.Config, args []string, stdout, stderr io.Writ
 	paste := fs.Bool("paste", false, "request paste after selection")
 	plain := fs.Bool("plain", false, "copy plain text")
 	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	badFlag := false
+	fs.Visit(func(f *flag.Flag) {
+		allowed := command == "list" && (f.Name == "limit" || f.Name == "offset" || f.Name == "query" || f.Name == "type" || f.Name == "json") || command == "copy" && f.Name == "plain" || command == "pick" && (f.Name == "tool" || f.Name == "paste" || f.Name == "query" || f.Name == "limit" || f.Name == "type")
+		if !allowed {
+			fmt.Fprintf(stderr, "--%s is not valid for %s\n", f.Name, command)
+			badFlag = true
+		}
+	})
+	if badFlag {
 		return 2
 	}
 	if *limit < 1 || *limit > 200 || *offset < 0 {
