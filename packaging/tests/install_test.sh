@@ -11,7 +11,7 @@ exit 1
 EOF
 chmod +x "$TMP/mock/curl"
 export NETWORK_LOG="$TMP/network"
-HOME="$TMP/home" PATH="$TMP/mock:$PATH" bash "$ROOT/packaging/install.sh" --version 0.3.1 --dry-run --no-service > "$TMP/output" 2>&1
+HOME="$TMP/home" PATH="$TMP/mock:$PATH" bash "$ROOT/packaging/install.sh" --version 0.4.0 --dry-run --no-service > "$TMP/output" 2>&1
 test ! -e "$TMP/network" || { echo 'FAIL: dry-run made network requests'; exit 1; }
 if HOME="$TMP/home" bash "$ROOT/packaging/install.sh" --version > "$TMP/error" 2>&1; then
   echo 'FAIL: accepted missing version'; exit 1
