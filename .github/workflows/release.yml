@@ -24,6 +24,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Verify before packaging
+        run: |
+          go test ./...
+          go vet ./...
+          bash packaging/tests/install_test.sh
+
       - name: Build binaries
         env:
           VERSION: ${{ github.ref_name }}
@@ -44,7 +50,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           V="${VERSION#v}"
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
           for pkg in deb rpm apk; do
             VERSION="$V" ARCH="$ARCH" "$(go env GOPATH)/bin/nfpm" package \
               --config packaging/nfpm.yaml --packager "$pkg" --target dist/
@@ -65,7 +71,14 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Check tarball manifests and hash every package
+        working-directory: dist
+        run: |
+          for manifest in *.tar.gz.sha256; do sha256sum -c "$manifest"; done
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
       - uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: dist/*
           generate_release_notes: true

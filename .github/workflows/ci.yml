@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feat/**' ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
@@ -17,12 +17,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
           check-latest: true
 
       - name: Verify dependencies
         run: |
           go mod verify
+
+      - name: Installer and workflow regression tests
+        run: |
+          bash packaging/tests/install_test.sh
+          python3 packaging/tests/workflow_test.py
 
       - name: Vet / Lint
         run: |
