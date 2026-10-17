@@ -40,7 +40,7 @@ deb rpm apk: build
 
 tarball: build
 	@mkdir -p $(DIST)
-	tar -C bin -czf $(DIST)/clipdeck_$(VERSION)_linux_$(ARCH).tar.gz clipdeck clipdeckd
+	tar --owner=0 --group=0 -C bin -czf $(DIST)/clipdeck_$(VERSION)_linux_$(ARCH).tar.gz clipdeck clipdeckd
 	cd $(DIST) && sha256sum clipdeck_$(VERSION)_linux_$(ARCH).tar.gz > clipdeck_$(VERSION)_linux_$(ARCH).tar.gz.sha256
 
 release: packages

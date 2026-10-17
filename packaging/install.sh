@@ -103,16 +103,26 @@ if [ "$FROM_SOURCE" = 1 ]; then
     -ldflags "-s -w -X main.version=${VERSION}" -o "$TMP/clipdeckd" "${SRC}/cmd/clipdeckd"
 else
   TARBALL="clipdeck_${VERSION}_linux_${ARCH}.tar.gz"
-  URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TARBALL}"
+  # CLIPDECK_RELEASE_BASE_URL lets mirrored/air-gapped setups host the assets.
+  RELEASE_BASE="${CLIPDECK_RELEASE_BASE_URL:-https://github.com/${REPO}/releases/download}"
+  URL="${RELEASE_BASE}/v${VERSION}/${TARBALL}"
   say "Downloading ${URL}"
-  run curl -fSsL --connect-timeout 10 --max-time 300 -o "$TMP/$TARBALL" "$URL"
+  if ! run curl -fSsL --connect-timeout 10 --max-time 300 -o "$TMP/$TARBALL" "$URL"; then
+    die "could not download the release tarball.
+
+  - check your network connection (the release lives on GitHub)
+  - or host the assets anywhere else and point the installer at them:
+      CLIPDECK_RELEASE_BASE_URL=<base> ${0##*/} --version ${VERSION}
+  - on minimal systems install CA certificates first:
+      apt install ca-certificates   |   dnf install ca-certificates   |   apk add ca-certificates"
+  fi
   if curl -fSsL --connect-timeout 5 --max-time 20 -o "$TMP/$TARBALL.sha256" "${URL}.sha256" 2>/dev/null; then
     say "Verifying checksum"
     ( cd "$TMP" && sha256sum -c "$TARBALL.sha256" )
   else
     warn "no checksum published for this release — skipping verification"
   fi
-  run tar -C "$TMP" -xzf "$TMP/$TARBALL"
+  run tar --no-same-owner -C "$TMP" -xzf "$TMP/$TARBALL"
 fi
 
 # ---------------------------------------------------------------- install
