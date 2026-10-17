@@ -41,5 +41,8 @@ removes it, substantially improving short-query first-page retrieval in this
 fixture. These single-run means are not p95 or a validated cross-workload
 release performance result. Common-match FTS ranking remains slow (~40–50 ms).
 The ≥30% common-query improvement gate remains unmet; publication is blocked.
+Rejected experiment: a materialized narrow ranked-key CTE before fetching clip
+payloads increased common-match means to ~43.7/53.7 ms and no-match to ~0.216 ms;
+removed rather than retain an unproven optimization.
 CPU profile includes fixture seeding; its whole-process percentages must not
 be presented as search-only percentages.

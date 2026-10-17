@@ -129,17 +129,22 @@ func (c *Capturer) runWatcher(ctx context.Context, isImage bool) {
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			time.Sleep(backoff)
+			if !retryWait(ctx, backoff) {
+				return
+			}
 			continue
 		}
 
 		if err := cmd.Start(); err != nil {
-			time.Sleep(backoff)
+			if !retryWait(ctx, backoff) {
+				return
+			}
 			continue
 		}
 
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
+			backoff = 500 * time.Millisecond
 			// One line per selection change: snapshot the current clipboard
 			// and store it. Serialized so the text and image watchers cannot
 			// race each other into the store.
@@ -153,11 +158,24 @@ func (c *Capturer) runWatcher(ctx context.Context, isImage bool) {
 
 		_ = cmd.Wait()
 
-		time.Sleep(backoff)
+		if !retryWait(ctx, backoff) {
+			return
+		}
 		backoff = time.Duration(float64(backoff) * 1.5)
 		if backoff > maxBackoff {
 			backoff = maxBackoff
 		}
+	}
+}
+
+func retryWait(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
