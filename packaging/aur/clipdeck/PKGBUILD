@@ -6,12 +6,15 @@ pkgdesc="A keyboard-first clipboard manager daemon and CLI for Omarchy 4 and Way
 arch=('x86_64' 'aarch64')
 url="https://github.com/Mersad-Moghaddam/clipdeck"
 license=('MIT')
-depends=('glibc')
+depends=()
 makedepends=('go' 'git')
 optdepends=(
     'wl-clipboard: Wayland clipboard capture and copy'
     'wtype: active window direct paste simulation'
     'hyprland: Wayland compositor window focus queries'
+    'fuzzel: menu selector for clipdeck pick'
+    'rofi: menu selector for clipdeck pick'
+    'wofi: menu selector for clipdeck pick'
 )
 source=("$pkgname::git+$url.git#tag=v$pkgver")
 sha256sums=('SKIP')
@@ -19,7 +22,6 @@ sha256sums=('SKIP')
 build() {
     cd "$srcdir/$pkgname"
     export CGO_ENABLED=0
-    export GOPROXY="https://goproxy.io,direct"
     go build -trimpath -ldflags "-s -w -X main.version=$pkgver" -o bin/clipdeck ./cmd/clipdeck
     go build -trimpath -ldflags "-s -w -X main.version=$pkgver" -o bin/clipdeckd ./cmd/clipdeckd
 }

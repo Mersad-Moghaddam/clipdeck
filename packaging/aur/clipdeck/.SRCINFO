@@ -8,10 +8,12 @@ pkgbase = clipdeck
 	license = MIT
 	makedepends = go
 	makedepends = git
-	depends = glibc
 	optdepends = wl-clipboard: Wayland clipboard capture and copy
 	optdepends = wtype: active window direct paste simulation
 	optdepends = hyprland: Wayland compositor window focus queries
+	optdepends = fuzzel: menu selector for clipdeck pick
+	optdepends = rofi: menu selector for clipdeck pick
+	optdepends = wofi: menu selector for clipdeck pick
 	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.3.1
 	sha256sums = SKIP
 

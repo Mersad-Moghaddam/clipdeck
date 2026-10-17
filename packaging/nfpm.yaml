@@ -49,14 +49,12 @@ scripts:
 overrides:
   deb:
     depends:
-      - libc6
       - wl-clipboard
     recommends:
       - wtype
       - xdg-utils
   rpm:
     depends:
-      - glibc
       - wl-clipboard
   apk:
     depends:
