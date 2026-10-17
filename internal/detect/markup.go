@@ -12,7 +12,7 @@ import (
 // markupMaxLines caps how much code a single rich preview may carry. The UI
 // pages through the plain content anyway, so an unbounded highlight of a
 // 10k-line paste would only cost memory and paint time in the shell.
-const markupMaxLines = 500
+const markupMaxLines = 120
 
 // markupRun is one contiguous span of source text with a semantic class.
 // The class is intentionally theme-free: the QML overlay maps "t-*" classes
