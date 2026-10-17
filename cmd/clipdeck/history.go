@@ -59,7 +59,19 @@ func runHistoryCommand(cfg *config.Config, args []string, stdout, stderr io.Writ
 	tool := fs.String("tool", "", "selector executable")
 	paste := fs.Bool("paste", false, "request paste after selection")
 	plain := fs.Bool("plain", false, "copy plain text")
-	if err := fs.Parse(args[1:]); err != nil {
+	rawArgs := args[1:]
+	if command == "copy" {
+		var flags, pos []string
+		for _, a := range rawArgs {
+			if strings.HasPrefix(a, "-") {
+				flags = append(flags, a)
+			} else {
+				pos = append(pos, a)
+			}
+		}
+		rawArgs = append(flags, pos...)
+	}
+	if err := fs.Parse(rawArgs); err != nil {
 		return 2
 	}
 	badFlag := false

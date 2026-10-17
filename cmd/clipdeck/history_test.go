@@ -20,6 +20,23 @@ func TestHistoryCommandValidation(t *testing.T) {
 	}
 }
 
+func TestCopyCommandFlagAcceptance(t *testing.T) {
+	cfg := config.DefaultConfig("dev")
+	cfg.IPC.SocketPath = filepath.Join(t.TempDir(), "nonexistent.sock")
+	for _, args := range [][]string{
+		{"copy", "item-123", "--plain"},
+		{"copy", "--plain", "item-123"},
+		{"copy", "item-123"},
+	} {
+		var out, diag bytes.Buffer
+		code := runHistoryCommand(cfg, args, &out, &diag)
+		// Should reach the daemon connect step (code 1), NOT flag validation failure (code 2)
+		if code != 1 {
+			t.Errorf("%v: expected code 1 (daemon offline), got %d (%s)", args, code, diag.String())
+		}
+	}
+}
+
 func TestPickerSanitizesControls(t *testing.T) {
 	got := pickerLabel("hello\nworld\t\x1b[31m\u202esecret")
 	for _, bad := range []string{"\n", "\t", "\x1b", "\u202e"} {

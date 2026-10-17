@@ -31,37 +31,47 @@ var (
 
 var version = "0.4.0"
 
+func parseGlobalArgs(args []string) (profile string, configFile string, subcmd string, subcmdArgs []string, err error) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if (arg == "--profile" || arg == "-profile") && i+1 < len(args) {
+			profile = args[i+1]
+			i++
+		} else if strings.HasPrefix(arg, "--profile=") || strings.HasPrefix(arg, "-profile=") {
+			profile = strings.TrimPrefix(strings.TrimPrefix(arg, "--profile="), "-profile=")
+		} else if (arg == "--config" || arg == "-config") && i+1 < len(args) {
+			configFile = args[i+1]
+			i++
+		} else if strings.HasPrefix(arg, "--config=") || strings.HasPrefix(arg, "-config=") {
+			configFile = strings.TrimPrefix(strings.TrimPrefix(arg, "--config="), "-config=")
+		} else if strings.HasPrefix(arg, "-") {
+			return "", "", "", nil, fmt.Errorf("Unknown flag: %s", arg)
+		} else {
+			subcmd = arg
+			subcmdArgs = args[i+1:]
+			break
+		}
+	}
+	return profile, configFile, subcmd, subcmdArgs, nil
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
-	// Extract global flags if placed before subcommand
-	args := os.Args[1:]
-	var subcmd string
-	var subcmdArgs []string
+	prof, cfgFile, subcmd, subcmdArgs, err := parseGlobalArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\nUsage: clipdeck [--profile dev] [--config file] <command>\n", err.Error())
+		os.Exit(1)
+	}
 
-	for i := 0; i < len(args); i++ {
-		if (args[i] == "--profile" || args[i] == "-profile") && i+1 < len(args) {
-			*profileFlag = args[i+1]
-			i++
-		} else if strings.HasPrefix(args[i], "--profile=") || strings.HasPrefix(args[i], "-profile=") {
-			*profileFlag = strings.TrimPrefix(strings.TrimPrefix(args[i], "--profile="), "-profile=")
-		} else if (args[i] == "--config" || args[i] == "-config") && i+1 < len(args) {
-			*configFlag = args[i+1]
-			i++
-		} else if strings.HasPrefix(args[i], "--config=") || strings.HasPrefix(args[i], "-config=") {
-			*configFlag = strings.TrimPrefix(strings.TrimPrefix(args[i], "--config="), "-config=")
-		} else if strings.HasPrefix(args[i], "-") {
-			// Unknown flag: fail loudly instead of silently swallowing it —
-			// users must be able to trust CLI exit codes.
-			fmt.Fprintf(os.Stderr, "Unknown flag: %s\nUsage: clipdeck [--profile dev] [--config file] <command>\n", args[i])
-			os.Exit(1)
-		} else if subcmd == "" {
-			subcmd = args[i]
-			subcmdArgs = args[i+1:]
-		}
+	if prof != "" {
+		*profileFlag = prof
+	}
+	if cfgFile != "" {
+		*configFlag = cfgFile
 	}
 
 	if subcmd == "" {

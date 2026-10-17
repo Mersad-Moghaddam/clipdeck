@@ -216,7 +216,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		res, rpcErr := s.dispatch(req.Method, req.Params)
+		res, rpcErr := s.dispatch(conn, req.Method, req.Params)
 		s.sendResponse(conn, Response{
 			ID:     req.ID,
 			Result: res,
@@ -251,6 +251,22 @@ func (s *Server) sendResponse(conn net.Conn, resp Response) {
 	}
 	data = append(data, '\n')
 	_ = s.writeWithTimeout(conn, data)
+}
+
+func (s *Server) sendEvent(conn net.Conn, eventName string, data any) {
+	if conn == nil {
+		return
+	}
+	evt := Event{
+		Event: eventName,
+		Data:  data,
+	}
+	msg, err := json.Marshal(evt)
+	if err != nil {
+		return
+	}
+	msg = append(msg, '\n')
+	_ = s.writeWithTimeout(conn, msg)
 }
 
 // maxListStream bytes bound per-item content/rich-preview fields in list and
@@ -302,7 +318,7 @@ func (s *Server) Broadcast(eventName string, data any) {
 	}
 }
 
-func (s *Server) dispatch(method string, params json.RawMessage) (any, *RPCError) {
+func (s *Server) dispatch(conn net.Conn, method string, params json.RawMessage) (any, *RPCError) {
 	switch method {
 	case "ping":
 		return map[string]any{"pong": true}, nil
@@ -327,7 +343,7 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *RPCError
 	case "copy":
 		return s.handleCopy(params)
 	case "paste":
-		return s.handlePaste(params)
+		return s.handlePaste(conn, params)
 	case "transform":
 		return s.handleTransform(params)
 	case "merge":
@@ -632,7 +648,7 @@ type PasteParams struct {
 	Transform string `json:"transform"`
 }
 
-func (s *Server) handlePaste(params json.RawMessage) (any, *RPCError) {
+func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCError) {
 	var p PasteParams
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &RPCError{Code: -32602, Message: "Invalid params: " + err.Error()}
@@ -651,7 +667,7 @@ func (s *Server) handlePaste(params json.RawMessage) (any, *RPCError) {
 	// Dispatch paste directly
 	go func() {
 		if err := hypr.PasteDirectly(); err != nil {
-			s.Broadcast("paste_failed", map[string]any{"id": p.ID, "message": "Copied; paste injection unavailable. Paste manually with Ctrl+V."})
+			s.sendEvent(conn, "paste_failed", map[string]any{"id": p.ID, "message": "Copied; paste injection unavailable. Paste manually with Ctrl+V."})
 		}
 	}()
 

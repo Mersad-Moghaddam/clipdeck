@@ -37,27 +37,54 @@ hyprctl (active window) ────┼──▶ clipdeckd (Go) ──▶ SQLite
 
 ## Installation
 
-### Prebuilt packages
+### Universal installer (recommended)
 
-Prebuilt packages for v0.4.0 are available on the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
-
-| Distribution | Command |
-|---|---|
-| Debian / Ubuntu | `sudo apt install ./clipdeck_0.4.0_amd64.deb` |
-| Fedora / RHEL | `sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm` |
-| openSUSE | `sudo zypper install ./clipdeck-0.4.0-1.x86_64.rpm` |
-| Alpine Linux | `sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk` |
-| Arch Linux | Build package with `makepkg -si` from `packaging/aur/clipdeck` |
-
-### Portable installer
-
-Run the automated installer script to fetch the latest prebuilt binary or build from source:
+Install or update to the newest version on any Linux distribution (`amd64` and `arm64`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
 ```
 
-The installer verifies architecture, stages binaries atomically in `~/.local/bin/`, installs the systemd user service in `~/.config/systemd/user/`, and runs `clipdeck doctor`. To build from source instead of fetching binaries, pass `--from-source`.
+The script verifies architecture, checks SHA256 checksums, installs binaries atomically into `~/.local/bin/`, sets up the systemd user service, and executes `clipdeck doctor`. Re-running this command at any time updates ClipDeck to the latest release. Pass `--from-source` to compile with Go instead of fetching binaries.
+
+### Distribution packages
+
+Download and install prebuilt packages for v0.4.0 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
+
+#### Debian and Ubuntu (`.deb`)
+
+```bash
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_amd64.deb
+sudo apt install ./clipdeck_0.4.0_amd64.deb
+```
+*(For ARM64 systems, substitute `arm64` for `amd64`)*
+
+#### Fedora and RHEL (`.rpm`)
+
+```bash
+sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.0-1.x86_64.rpm
+```
+*(For ARM64 systems, substitute `aarch64` for `x86_64`)*
+
+#### openSUSE (`.rpm`)
+
+```bash
+sudo zypper install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.0-1.x86_64.rpm
+```
+
+#### Alpine Linux (`.apk`)
+
+```bash
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk
+```
+
+#### Arch Linux
+
+```bash
+git clone https://github.com/Mersad-Moghaddam/clipdeck.git /tmp/clipdeck
+cd /tmp/clipdeck/packaging/aur/clipdeck && makepkg -si
+```
 
 ## Quick start
 
