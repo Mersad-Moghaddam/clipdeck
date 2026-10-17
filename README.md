@@ -1,137 +1,201 @@
 # ClipDeck
 
-**ClipDeck** is a fast, keyboard-first clipboard manager daemon and CLI for Omarchy 4 and Wayland/Hyprland desktop environments.
+[![Release](https://img.shields.io/github/v/release/Mersad-Moghaddam/clipdeck?color=blue)](https://github.com/Mersad-Moghaddam/clipdeck/releases)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/Mersad-Moghaddam/clipdeck)](go.mod)
+[![License](https://img.shields.io/github/license/Mersad-Moghaddam/clipdeck)](LICENSE)
+[![CI](https://github.com/Mersad-Moghaddam/clipdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/Mersad-Moghaddam/clipdeck/actions/workflows/ci.yml)
 
-Built in pure Go with zero CGO dependencies (`modernc.org/sqlite` with FTS5 trigram search), ClipDeck provides persistent clipboard history, intelligent content detection, sensitive data masking/purging, and a low-latency JSON-lines IPC protocol for UI integrations (such as the `omarchy-clipdeck` Quickshell plugin).
+ClipDeck is a keyboard-first clipboard manager daemon and CLI for Omarchy, Hyprland, and modern Wayland desktops.
 
----
+Built in pure Go with zero CGO dependencies (`modernc.org/sqlite` with FTS5 trigram search), ClipDeck combines persistent clipboard history with automatic content classification, sensitive token protection, and low-latency JSON-lines IPC.
 
 ## Features
 
-- **Searchable history:** SQLite FTS5 trigram substring/phrase search, including international text. Latency depends on query selectivity and history; see [measured results](docs/PERFORMANCE.md), not a universal timing guarantee.
-- **Intelligent Type Detection:** Automatically categorizes entries into links, code, colors, JSON, email, phone numbers, file paths, numbers, and plain text.
-- **Privacy & Sensitive Data Protection:**
-  - Detects `x-kde-passwordManagerHint` and secret MIME flags from password managers.
-  - Automatically identifies private keys, JWTs, API keys, high-entropy tokens, and credit card numbers (with Luhn validation).
-  - Automatically masks sensitive items and purges them after a configurable TTL (default 60s).
-- **Persian & RTL Support:** Native digit conversion (Persian/Latin/Arabic), Arabic yeh/kaf normalization, and zero-width non-joiner (ZWNJ) normalization.
-- **Daemon & CLI:**
-   - Background daemon (`clipdeckd`); resource usage needs measurement for the active workload.
-  - Full CLI (`clipdeck`) featuring `status`, `doctor`, `dev seed`, `clear`, `export`, and `import`.
-- **Hardened IPC:** Unix domain socket restricted with `0600` file permissions and kernel-level `SO_PEERCRED` validation (same UID enforcement).
-
----
+- **Full-text search**: SQLite FTS5 trigram engine indexes substrings, symbols, and multilingual text. See [measured results](docs/PERFORMANCE.md).
+- **Automatic type classification**: Categorizes entries into links, code snippets, colors (HEX, RGB, HSL), JSON, emails, phone numbers, file paths, numbers, and plain text.
+- **Privacy and credential protection**:
+  - Respects `x-kde-passwordManagerHint` and secret MIME flags from password managers.
+  - Detects private keys, JWTs, API tokens, high-entropy secrets, and credit cards with Luhn validation.
+  - Masks sensitive entries on ingest and purges them after a configurable TTL (default: 60s).
+- **Persian and RTL typography**: Normalizes Persian, Arabic, and Latin digits, handles Arabic Yeh and Kaf substitution, and preserves zero-width non-joiners (ZWNJ).
+- **Multiple interfaces**:
+  - Interactive terminal fuzzy picker (`clipdeck pick`) compatible with `fzf`, `rofi`, `wofi`, and `bemenu`.
+  - Rich desktop HUD overlay for Omarchy via the [`omarchy-clipdeck`](https://github.com/Mersad-Moghaddam/omarchy-clipdeck) Quickshell plugin.
+  - Scriptable CLI (`clipdeck list --json`, `clipdeck copy`, `clipdeck status`).
+- **Hardened IPC**: Unix domain socket restricted with `0600` file permissions and kernel `SO_PEERCRED` validation to enforce identical caller UID.
 
 ## Architecture
 
-```
+```text
 wl-paste --watch ───────────┐
-Hyprland IPC (active window)├──▶ clipdeckd (Go) ──▶ SQLite (FTS5) + blobs/
+hyprctl (active window) ────┼──▶ clipdeckd (Go) ──▶ SQLite (FTS5) + blobs/
                             │        │
-                            │   Unix socket (JSON lines)
+                            │   Unix socket (JSON lines, SO_PEERCRED)
                             │        │
-   QML plugin (Quickshell): ◀────────┴──▶ CLI: clipdeck
+   Quickshell overlay: ◀────┴──▶ CLI: clipdeck (list / pick / copy / doctor)
 ```
 
----
+## Installation
 
-## Install
+### Prebuilt packages
 
-> **Development branch:** v0.4 is not released. The new `list`, `copy`, and
-> copy-first `pick` commands require a query-capable daemon from the same
-> development version. Existing public v0.3.1 downloads are unchanged.
-> Read [desktop compatibility](docs/COMPATIBILITY.md) and
-> [outstanding release gates](docs/RELEASE_CHECKLIST.md) before testing.
+Prebuilt packages for v0.4.0 are available on the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
-Prebuilt packages for v0.4.0 are attached to every
-[GitHub release](https://github.com/Mersad-Moghaddam/clipdeck/releases):
-
-| System | Command |
+| Distribution | Command |
 |---|---|
 | Debian / Ubuntu | `sudo apt install ./clipdeck_0.4.0_amd64.deb` |
 | Fedora / RHEL | `sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm` |
 | openSUSE | `sudo zypper install ./clipdeck-0.4.0-1.x86_64.rpm` |
-| Alpine | `sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk` |
-| Arch | Use the native release package; AUR availability must be checked separately |
-| Any distro (portable) | `curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh \| bash` |
+| Alpine Linux | `sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk` |
+| Arch Linux | Build package with `makepkg -si` from `packaging/aur/clipdeck` |
 
-The installer detects your architecture, can build from source
-(`--from-source`), installs into `~/.local` (override with `--prefix`), wires
-up the systemd user service, and runs `clipdeck doctor`. The daemon is pure Go
-(CGO-free), avoiding a runtime libc dependency. Matching architecture and
-kernel/desktop capabilities are still required. See the compatibility matrix
-for current verification; older installation reports do not validate this
-development branch or every Wayland compositor.
+### Portable installer
 
----
+Run the automated installer script to fetch the latest prebuilt binary or build from source:
 
-## Building from Source
-
-### Prerequisites
-- Go 1.27+ (matches `go.mod`)
-- `wl-clipboard` (`wl-paste`, `wl-copy`)
-- `wtype` (optional, for direct paste)
-- `hyprland` (optional, for window context and direct paste fallback)
-
-### Build
 ```bash
-make build
-```
-Binaries will be placed in `bin/clipdeckd` and `bin/clipdeck`.
-
-### Run Tests & Verification
-```bash
-make test    # Unit tests
-make race    # Race detector
-make bench   # FTS5 search benchmark
-make integ   # End-to-end integration tests
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
 ```
 
----
+The installer verifies architecture, stages binaries atomically in `~/.local/bin/`, installs the systemd user service in `~/.config/systemd/user/`, and runs `clipdeck doctor`. To build from source instead of fetching binaries, pass `--from-source`.
 
-## Usage
+## Quick start
 
-### Running the Daemon
+Enable and start the background daemon:
+
 ```bash
-# Run in development profile (uses ~/.local/share/clipdeck-dev/)
-clipdeckd --profile dev
-
-# Run in production
 systemctl --user enable --now clipdeckd.service
 ```
 
-### CLI Commands
+Verify your environment and system dependencies:
+
 ```bash
-# Diagnostic check of system dependencies and directories
 clipdeck doctor
-
-# View daemon and database status
-clipdeck status
-
-# Populate database with synthetic test items (useful for development)
-clipdeck --profile dev dev seed
-
-# Clear history (unpinned items)
-clipdeck clear
-
-# Clear history including pinned items
-clipdeck clear --include-pinned
-
-# Export history to JSON
-clipdeck export --output backup.json
-
-# Import history from JSON
-clipdeck import backup.json
-
-# Import existing entries from cliphist
-clipdeck import-cliphist
-
-# Pause / Resume capture (Incognito mode)
-clipdeck pause toggle
 ```
 
----
+Launch the interactive fuzzy picker in your terminal:
+
+```bash
+clipdeck pick
+```
+
+## CLI commands
+
+The `clipdeck` executable provides management, diagnostic, and automation commands.
+
+### History and selection
+
+```bash
+# Open interactive picker (auto-detects fzf, rofi, wofi, or bemenu)
+clipdeck pick
+
+# Open picker with direct paste into active window
+clipdeck pick --paste
+
+# Specify selector explicitly
+clipdeck pick --tool rofi
+
+# List recent history entries
+clipdeck list --limit 20
+
+# Filter history by content type and search term
+clipdeck list --type code --query "func main"
+
+# Output structured JSON for scripts
+clipdeck list --json --limit 50
+
+# Copy a specific entry by ID to system clipboard
+clipdeck copy f93b700bdfa325d1
+
+# Copy plain text without formatting
+clipdeck copy f93b700bdfa325d1 --plain
+```
+
+### Diagnostics and control
+
+```bash
+# Check daemon health, system dependencies, and database integrity
+clipdeck doctor
+
+# Display daemon uptime, item counts, and database size
+clipdeck status
+
+# Toggle clipboard capture pause (incognito mode)
+clipdeck pause toggle
+
+# Explicitly pause or resume capture
+clipdeck pause on
+clipdeck pause off
+
+# Clear unpinned history
+clipdeck clear
+
+# Clear entire history including pinned items
+clipdeck clear --include-pinned
+```
+
+### Backups and migration
+
+```bash
+# Export history to JSON
+clipdeck export --output clipboard_backup.json
+
+# Import history from JSON file
+clipdeck import clipboard_backup.json
+
+# Import existing clipboard items from cliphist
+clipdeck import-cliphist
+
+# Populate database with synthetic test entries (development profile)
+clipdeck --profile dev dev seed
+```
+
+## Omarchy visual overlay
+
+For Omarchy and Quickshell users, the [`omarchy-clipdeck`](https://github.com/Mersad-Moghaddam/omarchy-clipdeck) plugin provides a native Wayland HUD overlay:
+
+- Default keyboard shortcut: `Super+V`
+- Instant search with server-side category tabs (All, Code, Links, Text, Media)
+- Direct row quick actions: Copy, Pin, Delete, and multi-item Merge
+- Full inspector panel with Markdown rendering and RTL typography
+
+To install the overlay plugin, place the repository in `~/.config/omarchy/plugins/io.github.mersadmoghaddam.clipdeck/`.
+
+## Building from source
+
+### Prerequisites
+
+- Go 1.22 or higher
+- `wl-clipboard` (`wl-paste`, `wl-copy`)
+- `wtype` (optional, required for simulated direct paste)
+- `hyprland` (optional, enables active window tracking and focus paste fallback)
+
+### Build and install
+
+```bash
+# Compile binaries into bin/clipdeckd and bin/clipdeck
+make build
+
+# Install binaries into ~/.local/bin and install user service
+make install
+```
+
+### Test suite
+
+```bash
+make test    # Run unit tests
+make race    # Run race condition detector
+make bench   # Run FTS5 indexing and query benchmarks
+make integ   # Run end-to-end integration tests
+```
+
+## Documentation
+
+- [IPC protocol specification](docs/PROTOCOL.md): JSON-lines framing, methods, params, and event streaming.
+- [Desktop compatibility matrix](docs/COMPATIBILITY.md): Compositor and distribution support status.
+- [Performance benchmarks](docs/PERFORMANCE.md): Query response timings and memory usage metrics.
+- [Release verification checklist](docs/RELEASE_CHECKLIST.md): Quality gates and verification criteria.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE) for details.
