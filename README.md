@@ -52,7 +52,10 @@ The installer detects your architecture, can build from source
 (`--from-source`), installs into `~/.local` (override with `--prefix`), wires
 up the systemd user service, and runs `clipdeck doctor`. The daemon is pure Go
 (CGO-free), so the same binaries run on any distro of the matching
-architecture — glibc and musl included.
+architecture — glibc and musl included. Verified end-to-end on Debian 12
+(`apt install` of the `.deb` with dependencies resolved from Debian, static
+binaries, daemon IPC and doctor) inside a clean bookworm rootfs, as well as on
+Arch/Omarchy.
 
 ---
 
