@@ -1,6 +1,6 @@
 pkgbase = clipdeck
 	pkgdesc = A keyboard-first clipboard manager daemon and CLI for Omarchy 4 and Wayland
-	pkgver = 0.4.0
+	pkgver = 0.4.1
 	pkgrel = 1
 	url = https://github.com/Mersad-Moghaddam/clipdeck
 	arch = x86_64
@@ -14,7 +14,7 @@ pkgbase = clipdeck
 	optdepends = fuzzel: menu selector for clipdeck pick
 	optdepends = rofi: menu selector for clipdeck pick
 	optdepends = wofi: menu selector for clipdeck pick
-	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.4.0
+	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.4.1
 	sha256sums = SKIP
 
 pkgname = clipdeck

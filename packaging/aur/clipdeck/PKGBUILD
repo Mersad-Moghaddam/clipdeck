@@ -1,6 +1,6 @@
 # Maintainer: Mersad Moghaddam <nickmersad81@gmail.com>
 pkgname=clipdeck
-pkgver=0.4.0
+pkgver=0.4.1
 pkgrel=1
 pkgdesc="A keyboard-first clipboard manager daemon and CLI for Omarchy 4 and Wayland"
 arch=('x86_64' 'aarch64')
