@@ -259,7 +259,7 @@ func (s *Server) sendResponse(conn net.Conn, resp Response) {
 // the id-based copy/paste/get/transform paths.
 const (
 	maxListStreamContent = 16 * 1024
-	maxListStreamRich    = 8 * 1024
+	maxListStreamRich    = 32 * 1024
 )
 
 func trimToMax(s string, max int) string {
@@ -277,7 +277,13 @@ func trimToMax(s string, max int) string {
 func slimForList(items []store.Item) []store.Item {
 	for i := range items {
 		items[i].Content = trimToMax(items[i].Content, maxListStreamContent)
-		items[i].RichPreview = trimToMax(items[i].RichPreview, maxListStreamRich)
+		if len(items[i].RichPreview) > maxListStreamRich {
+			// Do not cut rich markup mid-tag with trimToMax: slicing HTML
+			// bytes produces unclosed spans that choke the Qt RichText engine.
+			// When markup exceeds the streaming cap, clear it so the client
+			// cleanly falls back to plain text.
+			items[i].RichPreview = ""
+		}
 	}
 	return items
 }

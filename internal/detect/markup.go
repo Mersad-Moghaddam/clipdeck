@@ -72,7 +72,12 @@ func tokenRuns(tokens []chroma.Token) []markupRun {
 		if tok.Value == "" || tok.Type == chroma.None {
 			continue
 		}
-		runs = append(runs, markupRun{class: classForToken(tok.Type), text: tok.Value})
+		cls := classForToken(tok.Type)
+		if n := len(runs); n > 0 && runs[n-1].class == cls {
+			runs[n-1].text += tok.Value
+			continue
+		}
+		runs = append(runs, markupRun{class: cls, text: tok.Value})
 	}
 	return runs
 }
