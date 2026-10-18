@@ -5,7 +5,21 @@ root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 python=${CLIPDECK_TEST_PYTHON:-python3}
 for tool in Xvfb i3 i3-msg xdotool; do command -v "$tool" >/dev/null || { echo "Missing test dependency: $tool" >&2; exit 1; }; done
 tmp=$(mktemp -d)
-trap 'kill "${ui:-}" "${wm:-}" "${server:-}" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+cleanup() {
+  result=$?
+  if ((result != 0)); then
+    for log in i3.config i3.log ui.log tree.json; do
+      if [[ -f "$tmp/$log" ]]; then
+        echo "Diagnostic: $log" >&2
+        cat "$tmp/$log" >&2
+      fi
+    done
+    i3-msg -t get_config >&2 || true
+  fi
+  kill "${ui:-}" "${wm:-}" "${server:-}" 2>/dev/null || true
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
 Xvfb -displayfd 3 -screen 0 1280x900x24 -nolisten tcp 3>"$tmp/display" >"$tmp/xvfb.log" 2>&1 &
 server=$!
 for ((i=0;i<100;i++)); do [[ -s "$tmp/display" ]] && break; sleep .05; done
