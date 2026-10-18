@@ -141,7 +141,7 @@ trap 'exit 143' TERM
 
 if [ "$WITH_UI" = 1 ]; then
   command -v python3 >/dev/null 2>&1 || die "The graphical app needs Python 3.10+. Ubuntu/Zorin: sudo apt install python3 python3-venv"
-  python3 -c 'import sys; assert sys.version_info >= (3, 10)' || die "Python 3.10 or newer is required for the graphical app"
+  python3 -c 'import sys; assert sys.version_info >= (3, 12)' || die "Python 3.12 or newer is required for the graphical app (Ubuntu 24.04+); older systems can use --daemon-only"
   say "Standalone UI selected: downloads Qt/PySide6 into a private environment; system Python is not changed."
 fi
 

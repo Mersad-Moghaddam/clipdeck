@@ -42,7 +42,7 @@ hyprctl (active window) ────┼──▶ clipdeckd (Go) ──▶ SQLite
 ### Guided installation
 
 The portable daemon supports `amd64` and `arm64`. The optional popup requires
-Python 3.10+, a compatible Qt wheel, and a graphical desktop. Check the
+Python 3.12+, a compatible Qt wheel, and a graphical desktop. Check the
 [support matrix](docs/desktop-support.md) before installing; GNOME Wayland does
 not expose the clipboard-watch protocol used by this daemon. On Ubuntu/Zorin,
 select an X11 session for clipboard capture.

@@ -32,6 +32,6 @@ Bundled file SHA-256 provenance:
 e490660ad75e0b152c93b1604c2ea1a4ea675f1b8a3fe0d005b1998568f99f1f  JetBrainsMonoNerdFont-Bold.ttf
 ```
 
-Python 3.10+ and PySide6-Essentials 6.6+ are required. Python 3.10 uses `tomli`;
-newer Python uses the standard-library TOML parser. PySide6 is installed in a
+Python 3.12+ and PySide6-Essentials 6.6+ are required. Python uses the
+standard-library TOML parser. PySide6 is installed in a
 private virtual environment by the optional GUI installer, never system pip.
