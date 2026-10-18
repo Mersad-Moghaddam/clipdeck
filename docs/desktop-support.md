@@ -1,5 +1,9 @@
 # Desktop support (v0.5.0 development)
 
+The standalone popup requires Python 3.12+ (Ubuntu 24.04 baseline). Python 3.10
+ran all assertions but aborted in Qt teardown on hosted CI, so it is not a
+supported GUI baseline. Older systems can use the daemon/CLI and existing plugin.
+
 These are implementation and test results, not a claim that every distribution
 or desktop has been certified.
 
