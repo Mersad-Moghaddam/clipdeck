@@ -275,7 +275,9 @@ ExecStart=/usr/bin/clipdeckd
 Restart=always
 RestartSec=1s
 RuntimeDirectory=clipdeck
+RuntimeDirectoryMode=0700
 StateDirectory=clipdeck
+StateDirectoryMode=0700
 
 [Install]
 WantedBy=graphical-session.target

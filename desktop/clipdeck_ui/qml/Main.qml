@@ -25,7 +25,7 @@ Window {
         if (seconds < 86400) return Math.floor(seconds / 3600) + "h"
         return Math.floor(seconds / 86400) + "d"
     }
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: theme.frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
     onVisibleChanged: if (visible) requestActivate()
 
     Shortcut { sequence: "Escape"; onActivated: deck.dismiss() }
@@ -197,6 +197,16 @@ Window {
                 Text { Layout.fillWidth: true; text: deck.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: theme.accent; font.family: theme.fontFamily; font.pixelSize: theme.body }
                 DeckButton { text: "Retry connection"; onClicked: deck.retry_connection() }
                 DeckButton { text: "Start & enable at login"; onClicked: deck.enable_startup() }
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: theme.captureWarning.length > 0
+                text: theme.captureWarning
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                color: theme.foreground
+                font.family: theme.fontFamily
+                font.pixelSize: theme.body
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
             Text { text: "Enter paste   Ctrl+C copy   Space select   Alt+1–9 quick   Ctrl+T transform   Ctrl+P pin   Shift+Del clear   Esc dismiss"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }

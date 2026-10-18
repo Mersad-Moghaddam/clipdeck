@@ -48,3 +48,16 @@ func TestDoctorX11DoesNotRequireWayland(t *testing.T) {
 		t.Fatalf("Wayland dependency required on X11: %s", output)
 	}
 }
+
+func TestDoctorRejectsGNOMEWaylandCapture(t *testing.T) {
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+	t.Setenv("XDG_CURRENT_DESKTOP", "zorin:GNOME")
+	cfg := config.DefaultConfig("dev")
+	cfg.Storage.DataDir = t.TempDir()
+	var buf bytes.Buffer
+	passed := runDoctor(cfg, &buf)
+	if passed || !strings.Contains(buf.String(), "GNOME Wayland clipboard capture is unsupported") {
+		t.Fatalf("expected actionable capture failure, got %v: %s", passed, buf.String())
+	}
+}

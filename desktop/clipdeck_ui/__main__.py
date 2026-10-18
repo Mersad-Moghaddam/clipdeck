@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QGuiApplication, QFontDatabase, QFont
+from PySide6.QtGui import QGuiApplication, QFontDatabase, QFont, QPalette
 from PySide6.QtQml import QQmlApplicationEngine
 
 from .ipc import DaemonClient
@@ -26,7 +26,15 @@ def main():
     app.setDesktopFileName("clipdeck")
     for font in (Path(__file__).parent / "fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(font))
-    tokens = resolve_theme()
+    palette = app.palette()
+    roles = {"background": QPalette.Window, "surface": QPalette.Base,
+             "foreground": QPalette.WindowText, "muted": QPalette.PlaceholderText,
+             "accent": QPalette.Highlight, "selected": QPalette.AlternateBase,
+             "border": QPalette.Mid}
+    native = {key: palette.color(role).name() for key, role in roles.items()}
+    native.update(fontFamily=app.font().family(), codeFamily="monospace",
+                  body=round(app.font().pointSizeF() * app.primaryScreen().logicalDotsPerInch() / 72))
+    tokens = resolve_theme(native=native)
     app_font = QFont(tokens["fontFamily"])
     app_font.setPixelSize(tokens["body"])
     app.setFont(app_font)

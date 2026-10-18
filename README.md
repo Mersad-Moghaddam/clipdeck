@@ -49,10 +49,10 @@ select an X11 session for clipboard capture.
 
 ```bash
 # Download a version-pinned installer, inspect it, then preview its actions.
-curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o clipdeck-install.sh
+curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.2/packaging/install.sh -o clipdeck-install.sh
 less clipdeck-install.sh
-bash clipdeck-install.sh --version 0.5.1 --with-ui --dry-run
-bash clipdeck-install.sh --version 0.5.1 --with-ui
+bash clipdeck-install.sh --version 0.5.2 --with-ui --dry-run
+bash clipdeck-install.sh --version 0.5.2 --with-ui
 ```
 
 The script verifies downloaded release checksums, installs into `~/.local`, and
@@ -89,6 +89,17 @@ recovery. They can be removed manually once no popup uses them. Run
 
 ### Standalone desktop app
 
+**Zorin / GNOME Wayland:** automatic capture is unsupported. Log out and choose
+an Xorg/X11 session for capture. Installing `wl-clipboard` alone does not solve
+the missing GNOME clipboard-watch protocol. An offline daemon is a separate issue:
+inspect `journalctl --user -u clipdeckd.service -b -n 100 --no-pager`.
+
+The GUI requires Python **3.12+**. Outside Omarchy, it uses Qt's desktop palette,
+font and normal window decorations; exact GTK theme matching depends on your Qt
+platform-theme integration. Native DEB/RPM/APK packages contain daemon/CLI only;
+use `--with-ui` to install the popup. Fedora, Alpine and ARM64 execution remain
+unverified; published package formats are not universal compatibility claims.
+
 ClipDeck includes a standalone Omarchy-style Qt popup and an X11 backend for
 i3 and other Linux desktops, alongside the original Omarchy shell overlay.
 See the [desktop support and i3 setup guide](docs/desktop-support.md)
@@ -97,8 +108,8 @@ for desktop compatibility and environment dependencies.
 Install with the standalone UI enabled:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o /tmp/clipdeck-install.sh &&
-bash /tmp/clipdeck-install.sh --version 0.5.1 --with-ui
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.2/packaging/install.sh -o /tmp/clipdeck-install.sh &&
+bash /tmp/clipdeck-install.sh --version 0.5.2 --with-ui
 clipdeck-ui
 ```
 
@@ -108,60 +119,60 @@ installation path. Ubuntu/Debian users may need `sudo apt install python3-venv x
 
 ### Distribution packages
 
-Download and install prebuilt packages for **v0.5.1** from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.1). Downloads below fail closed: a nonempty matching checksum entry and successful verification are required before installation.
+Download and install prebuilt packages for **v0.5.2** from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.2). Downloads below fail closed: a nonempty matching checksum entry and successful verification are required before installation.
 
 #### Debian and Ubuntu (`.deb`)
 
 ```bash
 # For amd64 (x86_64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_amd64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_amd64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.5.1_amd64.deb
+sudo apt install ./clipdeck_0.5.2_amd64.deb
 
 # For arm64 (aarch64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_arm64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_arm64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_arm64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_arm64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.5.1_arm64.deb
+sudo apt install ./clipdeck_0.5.2_arm64.deb
 ```
 
 #### Fedora and RHEL (`.rpm`)
 
 ```bash
 # For x86_64
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck-0.5.1-1.x86_64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.5\.1-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck-0.5.2-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.5\.2-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.5.1-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.5.2-1.x86_64.rpm
 
 # For aarch64 (ARM64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck-0.5.1-1.aarch64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.5\.1-1\.aarch64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck-0.5.2-1.aarch64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.5\.2-1\.aarch64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.5.1-1.aarch64.rpm
+sudo dnf install ./clipdeck-0.5.2-1.aarch64.rpm
 ```
 
 #### openSUSE (`.rpm`)
 
 ```bash
 # Download and verify the RPM using the Fedora block above; use this instead of dnf:
-sudo zypper install ./clipdeck-0.5.1-1.x86_64.rpm
+sudo zypper install ./clipdeck-0.5.2-1.x86_64.rpm
 ```
 
 #### Alpine Linux (`.apk`)
 
 ```bash
 # For x86_64
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_x86_64.apk &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_x86_64\.apk$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apk add --allow-untrusted ./clipdeck_0.5.1_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.5.2_x86_64.apk
 ```
 
 #### Arch Linux

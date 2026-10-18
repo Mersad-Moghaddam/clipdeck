@@ -1,6 +1,6 @@
 pkgbase = clipdeck
 	pkgdesc = A keyboard-first clipboard manager daemon and CLI for X11 and compatible Wayland desktops
-	pkgver = 0.5.1
+	pkgver = 0.5.2
 	pkgrel = 1
 	url = https://github.com/Mersad-Moghaddam/clipdeck
 	arch = x86_64
@@ -17,7 +17,7 @@ pkgbase = clipdeck
 	optdepends = fuzzel: menu selector for clipdeck pick
 	optdepends = rofi: menu selector for clipdeck pick
 	optdepends = wofi: menu selector for clipdeck pick
-	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.5.1
+	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.5.2
 	sha256sums = SKIP
 
 pkgname = clipdeck

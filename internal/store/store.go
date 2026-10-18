@@ -52,18 +52,36 @@ func Open(dataDir string) (*Store, error) {
 		dataDir = filepath.Clean(dataDir)
 	}
 
+	for _, path := range []string{dataDir, filepath.Join(dataDir, "blobs"), filepath.Join(dataDir, "thumbs")} {
+		info, err := os.Lstat(path)
+		if err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
+			return nil, fmt.Errorf("private store path is not a real directory: %s", path)
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("inspect private store directory: %w", err)
+		}
+	}
 	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
+	}
+	if err := os.Chmod(dataDir, 0700); err != nil {
+		return nil, fmt.Errorf("restrict data dir: %w", err)
 	}
 
 	blobsDir := filepath.Join(dataDir, "blobs")
 	if err := os.MkdirAll(blobsDir, 0700); err != nil {
 		return nil, fmt.Errorf("create blobs dir: %w", err)
 	}
+	if err := os.Chmod(blobsDir, 0700); err != nil {
+		return nil, fmt.Errorf("restrict blobs dir: %w", err)
+	}
 
 	thumbsDir := filepath.Join(dataDir, "thumbs")
 	if err := os.MkdirAll(thumbsDir, 0700); err != nil {
 		return nil, fmt.Errorf("create thumbs dir: %w", err)
+	}
+	if err := os.Chmod(thumbsDir, 0700); err != nil {
+		return nil, fmt.Errorf("restrict thumbs dir: %w", err)
 	}
 
 	dbPath := filepath.Join(dataDir, "clipdeck.db")

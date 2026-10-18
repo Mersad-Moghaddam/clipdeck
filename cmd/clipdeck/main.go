@@ -218,9 +218,14 @@ func runDoctor(cfg *config.Config, out io.Writer) bool {
 			sessionMsg = "DISPLAY unset; launch from your X11 desktop"
 		}
 	}
+	unsupportedCapture := !isX11 && waylandDisplay != "" && strings.Contains(strings.ToLower(desktop), "gnome")
+	if unsupportedCapture {
+		sessionPassed = false
+		sessionMsg = "GNOME Wayland clipboard capture is unsupported; log out and choose a Zorin/GNOME Xorg session. Installing wl-clipboard does not enable monitoring."
+	}
 	checks = append(checks, checkItem{
 		Name:     sessionName,
-		Required: false,
+		Required: unsupportedCapture,
 		Passed:   sessionPassed,
 		Message:  sessionMsg,
 	})

@@ -19,12 +19,14 @@ def _config(path):
         return {}
 
 
-def resolve_theme(env=None):
+def resolve_theme(env=None, native=None):
     env = os.environ if env is None else env
     family = env.get("OMARCHY_MENU_FONT", "").strip()
     if not family or any(ord(char) < 32 for char in family) or len(family) > 200:
         family = "JetBrainsMono Nerd Font"
     result = {
+        "captureWarning": "GNOME Wayland cannot capture clipboard history. Log out and choose an Xorg/X11 session." if env.get("XDG_SESSION_TYPE") == "wayland" and "gnome" in env.get("XDG_CURRENT_DESKTOP", "").lower() else "",
+        "frameless": True,
         "fontFamily": family,
         "codeFamily": "JetBrainsMono Nerd Font",
         "caption": 10, "bodySmall": 11, "body": 12, "subtitle": 13, "title": 14,
@@ -36,6 +38,10 @@ def resolve_theme(env=None):
     state = Path(env.get("XDG_STATE_HOME", str(home / ".local/state")))
     config = Path(env.get("XDG_CONFIG_HOME", str(home / ".config")))
     theme = state / "omarchy/current/theme"
+    if native is not None and not theme.is_dir() and not (config / "omarchy").is_dir():
+        result.update(native)
+        result["frameless"] = False
+        return result
     colors = _config(theme / "colors.toml")
     shell = _config(theme / "shell.toml")
     for section, values in _config(config / "omarchy/shell.toml").items():

@@ -6,6 +6,17 @@ from clipdeck_ui.theme import resolve_theme
 
 
 class ThemeTests(unittest.TestCase):
+    def test_gnome_wayland_capture_warning(self):
+        theme = resolve_theme({"XDG_SESSION_TYPE": "wayland", "XDG_CURRENT_DESKTOP": "zorin:GNOME"})
+        self.assertIn("cannot capture", theme["captureWarning"])
+    def test_non_omarchy_uses_desktop_tokens(self):
+        native = {"background": "#fafafa", "foreground": "#202020", "accent": "#3584e4", "fontFamily": "Sans Serif", "body": 15}
+        with tempfile.TemporaryDirectory() as home:
+            theme = resolve_theme(env={"HOME": home, "XDG_CURRENT_DESKTOP": "zorin:GNOME"}, native=native)
+        for key, value in native.items():
+            self.assertEqual(theme[key], value)
+        self.assertFalse(theme["frameless"])
+
     def test_omarchy_typography_defaults(self):
         theme = resolve_theme(env={})
         self.assertEqual(theme["fontFamily"], "JetBrainsMono Nerd Font")

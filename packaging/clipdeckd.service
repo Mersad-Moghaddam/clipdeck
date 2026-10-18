@@ -13,8 +13,11 @@ StandardOutput=journal
 StandardError=journal
 
 RuntimeDirectory=clipdeck
+RuntimeDirectoryMode=0700
 StateDirectory=clipdeck
+StateDirectoryMode=0700
 ConfigurationDirectory=clipdeck
+ConfigurationDirectoryMode=0700
 
 [Install]
 WantedBy=graphical-session.target
