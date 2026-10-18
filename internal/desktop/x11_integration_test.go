@@ -41,3 +41,17 @@ func TestX11RealClipboardRoundTrip(t *testing.T) {
 		t.Fatalf("watch cancellation=%v", err)
 	}
 }
+
+func TestX11RealTargetPaste(t *testing.T) {
+	target := os.Getenv("CLIPDECK_TEST_PASTE_TARGET")
+	if target == "" {
+		t.Skip("run scripts/test-i3.sh for target paste integration")
+	}
+	b := NewX11Backend()
+	if err := b.Write(context.Background(), Selection{MIME: "text/plain", Data: []byte("ClipDeck target paste λ")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Paste(context.Background(), Window{ID: target}); err != nil {
+		t.Fatal(err)
+	}
+}

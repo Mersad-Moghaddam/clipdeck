@@ -52,6 +52,9 @@ func TestX11PasteDoesNotInjectWhenFocusRestoreFails(t *testing.T) {
 	marker := filepath.Join(dir, "injected")
 	t.Setenv("INJECTED", marker)
 	script := "#!/bin/sh\ncase \"$1\" in windowactivate) exit 1;; key) touch \"$INJECTED\";; esac\n"
+	if err := os.WriteFile(filepath.Join(dir, "xprop"), []byte("#!/bin/sh\nprintf 'WM_CLASS(STRING) = \"editor\", \"Editor\"\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "xdotool"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -61,5 +64,46 @@ func TestX11PasteDoesNotInjectWhenFocusRestoreFails(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("injected after focus failure")
+	}
+}
+
+func TestX11PasteDoesNotInjectAfterLateFocusChange(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "injected")
+	t.Setenv("INJECTED", marker)
+	script := "#!/bin/sh\ncase \"$1\" in windowactivate) exit 0;; getactivewindow) printf '99\\n';; key) touch \"$INJECTED\";; esac\n"
+	if err := os.WriteFile(filepath.Join(dir, "xprop"), []byte("#!/bin/sh\nprintf 'WM_CLASS(STRING) = \"editor\", \"Editor\"\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "xdotool"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	if err := NewX11Backend().Paste(context.Background(), Window{ID: "42"}); err == nil {
+		t.Fatal("late focus change ignored")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("injected into another window")
+	}
+}
+
+func TestX11PasteRejectsPopupTarget(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "injected")
+	t.Setenv("INJECTED", marker)
+	for name, script := range map[string]string{
+		"xdotool": "#!/bin/sh\ncase \"$1\" in getactivewindow) printf '42\\n';; key) touch \"$INJECTED\";; esac\n",
+		"xprop":   "#!/bin/sh\nprintf 'WM_CLASS(STRING) = \"clipdeck-ui\", \"clipdeck-ui\"\\n'\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	if err := NewX11Backend().Paste(context.Background(), Window{ID: "42"}); err == nil {
+		t.Fatal("popup target accepted")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("injected into popup")
 	}
 }

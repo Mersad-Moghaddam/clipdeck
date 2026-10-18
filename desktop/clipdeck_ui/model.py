@@ -1,6 +1,6 @@
 """Popup state independent of its window; all daemon actions are asynchronous."""
 
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QObject, Property, Signal, Slot, QThread
 from pathlib import Path
 
 
@@ -44,6 +44,7 @@ class PopupController(QObject):
     @Slot()
     def open(self):
         self._visible = True
+        self._message = ""
         self.changed.emit()
 
     @Slot()
@@ -55,6 +56,23 @@ class PopupController(QObject):
     def retry_connection(self):
         self._message = "Connecting to ClipDeck…"
         self.client.connect_to_daemon()
+        self.changed.emit()
+
+    @Slot()
+    def enable_startup(self):
+        if getattr(self, "_setup_worker", None) and self._setup_worker.isRunning():
+            return
+        self._message = "Enabling the installed user service…"
+        self._setup_worker = ServiceSetup(self)
+        self._setup_worker.result.connect(self.setup_finished)
+        self._setup_worker.start()
+        self.changed.emit()
+
+    @Slot(bool, str)
+    def setup_finished(self, success, message):
+        self._message = message
+        if success:
+            self.client.connect_to_daemon()
         self.changed.emit()
 
     @Slot(str, str)
@@ -69,6 +87,8 @@ class PopupController(QObject):
     @Slot()
     def load_more(self):
         if not self._has_more:
+            return
+        if any(action == "page" and value == (self._query_id, len(self._items)) for action, value in self._requests.values()):
             return
         params = next((dict(value[1]) for key, value in self._requests.items() if key == self._query_id), None)
         if params is None:
@@ -99,6 +119,13 @@ class PopupController(QObject):
         request_id = self.client.call("copy", {"id": item_id, "transform": transform})
         self._requests[request_id] = ("copy", item_id)
 
+    @Slot("QVariantList")
+    def merge_copy(self, ids):
+        if len(ids) < 2:
+            return
+        request_id = self.client.call("merge", {"ids": list(ids), "separator": "\n", "action": "copy"})
+        self._requests[request_id] = ("merge", None)
+
     @Slot(str)
     def paste_item(self, item_id):
         # confirmed=true is an additive daemon extension; older daemons' queued
@@ -124,6 +151,15 @@ class PopupController(QObject):
         if not isinstance(result, dict):
             self._failed(request_id, "Invalid daemon response")
             return
+        if action in ("query", "page"):
+            items = result.get("items", [])
+            if not isinstance(items, list) or not all(
+                isinstance(item, dict) and isinstance(item.get("id"), str)
+                and all(isinstance(item.get(key, ""), str) for key in ("preview", "content", "masked_content", "type", "thumbnail_path", "blob_path"))
+                for item in items
+            ) or type(result.get("has_more", False)) is not bool:
+                self._failed(request_id, "Invalid daemon response")
+                return
         if action == "query" and request_id == self._query_id:
             self._items = result.get("items", [])
             self._has_more = bool(result.get("has_more"))
@@ -133,11 +169,16 @@ class PopupController(QObject):
             self._has_more = bool(result.get("has_more"))
         elif action == "preview" and value == self._selected.get("id"):
             item = result.get("item", result)
+            if not isinstance(item, dict) or not all(isinstance(item.get(key, ""), str) for key in ("content", "masked_content")):
+                self._failed(request_id, "Invalid daemon response")
+                return
             self._preview = item.get("masked_content", "Sensitive content hidden") if item.get("sensitive") else item.get("content", "")
-        elif action == "copy" and result.get("success"):
+        elif action == "copy" and result.get("success") is True:
+            self.dismiss()
+        elif action == "merge" and isinstance(result.get("text"), str):
             self.dismiss()
         elif action == "paste":
-            if result.get("pasted"):
+            if result.get("pasted") is True:
                 self.dismiss()
             else:
                 self._message = "Copied — paste with Ctrl+V. Automatic paste was not confirmed."
@@ -153,3 +194,15 @@ class PopupController(QObject):
     def _event(self, name, _payload):
         if name in ("item_added", "item_deleted", "item_updated") and self._visible:
             self.search(self._query, self._category)
+
+
+class ServiceSetup(QThread):
+    result = Signal(bool, str)
+
+    def run(self):
+        from .startup import enable_service
+        try:
+            enable_service()
+            self.result.emit(True, "Startup enabled. Connecting…")
+        except Exception as error:
+            self.result.emit(False, f"Could not enable the user service: {error}. Install the companion service first or configure session autostart.")

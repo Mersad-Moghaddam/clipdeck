@@ -73,3 +73,26 @@ func TestNativeBackendPreservesFileSelection(t *testing.T) {
 		t.Fatalf("paused capture item=%+v error=%v", item, err)
 	}
 }
+
+func TestNativeBackendRetainsSourceApp(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	c := New(config.DefaultConfig(""), st, nil)
+	c.backend = attributedBackend{selectionBackend: selectionBackend{selection: desktop.Selection{MIME: "text/plain", Data: []byte("attributed selection")}}}
+	item, err := c.SnapshotCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item == nil || item.SourceApp != "editor" {
+		t.Fatalf("item=%+v", item)
+	}
+}
+
+type attributedBackend struct{ selectionBackend }
+
+func (attributedBackend) ActiveWindow(context.Context) (desktop.Window, error) {
+	return desktop.Window{Class: "editor"}, nil
+}

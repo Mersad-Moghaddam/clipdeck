@@ -18,7 +18,7 @@ jobs:
       - name: Install X11 and headless Qt dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xclip xdotool libegl1 libopengl0 libxkbcommon0
+          sudo apt-get install -y xvfb xclip xdotool x11-utils i3-wm libegl1 libopengl0 libxkbcommon0 libxcb-cursor0
           python -m pip install ./desktop
       - name: Frontend behavior and offscreen window
         env:
@@ -28,10 +28,14 @@ jobs:
         run: python -m unittest discover -s desktop/tests -v
       - name: Real X11 clipboard
         run: bash scripts/test-x11.sh
+      - name: Nested i3 popup and activation
+        run: bash scripts/test-i3.sh
       - name: Installer regressions
         run: |
           bash packaging/tests/install_test.sh
           bash packaging/tests/archive_test.sh
           bash packaging/tests/desktop_install_test.sh
+          bash packaging/tests/session_test.sh
+          bash packaging/tests/uninstall_scope_test.sh
       - name: Build standalone wheel
         run: python -m pip wheel --no-deps --wheel-dir dist ./desktop

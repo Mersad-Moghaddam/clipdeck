@@ -70,8 +70,29 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  desktop:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Build and verify standalone package
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libopengl0 libxkbcommon0
+          python -m pip install ./desktop
+          PYTHONPATH=desktop QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software python -m unittest discover -s desktop/tests -v
+          python -m pip wheel --no-deps --wheel-dir dist ./desktop
+          cp packaging/clipdeck-session dist/clipdeck-session
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-desktop
+          path: dist/*
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

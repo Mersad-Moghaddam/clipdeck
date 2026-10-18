@@ -76,3 +76,57 @@ class PopupTests(unittest.TestCase):
     def test_connection_failure_can_be_retried(self):
         self.popup.retry_connection()
         self.assertEqual(self.client.connections, 1)
+
+    def test_merge_selected_clips_uses_daemon(self):
+        self.popup.merge_copy(["a", "b"])
+        self.assertEqual(self.client.calls[-1][1:], ("merge", {"ids": ["a", "b"], "separator": "\n", "action": "copy"}))
+        self.client.response.emit(self.client.calls[-1][0], {"text": "joined"})
+        self.assertFalse(self.popup.visible)
+
+    def test_reopen_clears_stale_status(self):
+        self.client.failed.emit("", "old error")
+        self.popup.open()
+        self.assertEqual(self.popup.message, "")
+
+    def test_service_setup_failure_stays_recoverable(self):
+        self.popup.setup_finished(False, "User service unavailable")
+        self.assertEqual(self.popup.message, "User service unavailable")
+        self.assertEqual(self.client.connections, 0)
+
+    def test_service_setup_success_reconnects(self):
+        self.popup.setup_finished(True, "Startup enabled")
+        self.assertEqual(self.client.connections, 1)
+
+    def test_repeated_load_more_does_not_duplicate_page_requests(self):
+        self.popup.search("", "All")
+        self.client.response.emit("1", {"items": [{"id": "a"}], "has_more": True})
+        self.popup.load_more()
+        self.popup.load_more()
+        self.assertEqual(len(self.client.calls), 2)
+
+    def test_stale_preview_cannot_replace_current_item(self):
+        self.popup.select_item({"id": "a", "preview": "A"})
+        self.popup.select_item({"id": "b", "preview": "B"})
+        self.client.response.emit("1", {"item": {"id": "a", "content": "old"}})
+        self.assertEqual(self.popup.preview, "B")
+
+    def test_malformed_query_preserves_history_and_reports_error(self):
+        self.popup.search("", "All")
+        self.popup._response("1", {"items": [{"id": "a"}]})
+        for items in (None, "bad", [None], [{"id": 42}]):
+            self.popup.search("", "All")
+            self.popup._response(self.client.calls[-1][0], {"items": items})
+            self.assertEqual(self.popup.items, [{"id": "a"}])
+            self.assertEqual(self.popup.message, "Invalid daemon response")
+
+    def test_malformed_preview_preserves_current_text(self):
+        self.popup.select_item({"id": "a", "preview": "safe"})
+        self.popup._response("1", {"item": None})
+        self.assertEqual(self.popup.preview, "safe")
+        self.assertEqual(self.popup.message, "Invalid daemon response")
+
+    def test_truthy_non_boolean_copy_confirmation_does_not_hide(self):
+        self.popup.open()
+        self.popup.copy_item("a")
+        self.popup._response("1", {"success": "false"})
+        self.assertTrue(self.popup.visible)

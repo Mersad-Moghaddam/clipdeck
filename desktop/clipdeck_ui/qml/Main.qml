@@ -10,6 +10,13 @@ Window {
     minimumWidth: 720; minimumHeight: 440
     visible: deck.visible
     color: theme.background
+    property var selectedIds: []
+    function toggleSelection(id) {
+        let next = selectedIds.slice()
+        let index = next.indexOf(id)
+        if (index >= 0) next.splice(index, 1); else next.push(id)
+        selectedIds = next
+    }
     flags: Qt.Window | Qt.FramelessWindowHint
     onVisibleChanged: if (visible) requestActivate()
 
@@ -18,6 +25,7 @@ Window {
     Shortcut { sequence: "Return"; onActivated: if (history.currentItem) deck.paste_item(history.currentItem.clip.id) }
     Shortcut { sequence: "Ctrl+P"; onActivated: if (history.currentItem) deck.pin_item(history.currentItem.clip.id, !history.currentItem.clip.pinned) }
     Shortcut { sequence: "Ctrl+L"; onActivated: search.forceActiveFocus() }
+    Shortcut { sequence: "Ctrl+M"; onActivated: deck.merge_copy(window.selectedIds) }
 
     Rectangle {
         anchors.fill: parent
@@ -81,7 +89,7 @@ Window {
                         required property int index
                         property var clip: modelData
                         width: history.width; height: 51; radius: 4
-                        color: history.currentIndex === index ? theme.selected : "transparent"
+                        color: history.currentIndex === index || window.selectedIds.indexOf(row.clip.id) >= 0 ? theme.selected : "transparent"
                         Rectangle { width: 3; anchors.left: parent.left; height: parent.height - 12; anchors.verticalCenter: parent.verticalCenter; color: history.currentIndex === row.index ? theme.accent : "transparent" }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 8; spacing: 10
@@ -93,10 +101,11 @@ Window {
                                 Text { Layout.fillWidth: true; text: row.clip.preview || row.clip.content || ""; textFormat: Text.PlainText; elide: Text.ElideRight; maximumLineCount: 1; color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.body }
                             }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: { history.currentIndex = row.index; deck.select_item(row.clip) } onDoubleClicked: deck.copy_item(row.clip.id) }
+                        MouseArea { anchors.fill: parent; onClicked: function(mouse) { history.currentIndex = row.index; deck.select_item(row.clip); if (mouse.modifiers & Qt.ControlModifier) window.toggleSelection(row.clip.id) } onDoubleClicked: deck.copy_item(row.clip.id) }
                     }
                     ScrollBar.vertical: ScrollBar {}
                     Keys.onReturnPressed: if (currentItem) deck.paste_item(currentItem.clip.id)
+                    Keys.onSpacePressed: if (currentItem) window.toggleSelection(currentItem.clip.id)
                 }
                 Rectangle { width: 1; Layout.fillHeight: true; color: theme.border }
                 ColumnLayout {
@@ -119,6 +128,7 @@ Window {
                     RowLayout {
                         Button { text: "Paste Enter"; enabled: !!deck.selected.id; onClicked: deck.paste_item(deck.selected.id); background: Rectangle { color: theme.accent; radius: 12 } }
                         Button { text: "Copy Ctrl+C"; enabled: !!deck.selected.id; onClicked: deck.copy_item(deck.selected.id) }
+                        Button { text: "Merge " + window.selectedIds.length; visible: window.selectedIds.length > 1; onClicked: deck.merge_copy(window.selectedIds) }
                         Button { text: "Transform"; enabled: !!deck.selected.id && deck.selected.type !== "image"; onClicked: transformMenu.open()
                             Menu { id: transformMenu
                                 MenuItem { text: "Copy uppercase"; onTriggered: deck.copy_transformed(deck.selected.id, "uppercase") }
@@ -135,6 +145,7 @@ Window {
                 visible: deck.message.length > 0
                 Text { Layout.fillWidth: true; text: deck.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: theme.accent; font.family: theme.fontFamily; font.pixelSize: theme.body }
                 Button { text: "Retry connection"; onClicked: deck.retry_connection() }
+                Button { text: "Start & enable at login"; onClicked: deck.enable_startup() }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
             Text { text: "Enter paste   Ctrl+C copy   Ctrl+P pin   Ctrl+L search   Esc dismiss"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }

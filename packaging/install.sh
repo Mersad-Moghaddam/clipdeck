@@ -70,12 +70,15 @@ systemctl_user() { systemctl --user "$@"; }
 # ---------------------------------------------------------------- uninstall
 if [ "$UNINSTALL" = 1 ]; then
   say "Removing ClipDeck"
-  if command -v systemctl >/dev/null 2>&1; then
+  HAD_UNIT=0
+  [ ! -f "$UNIT_FILE" ] || HAD_UNIT=1
+  if [ -f "$UNIT_FILE" ] && command -v systemctl >/dev/null 2>&1; then
     run systemctl_user disable --now clipdeckd.service || true
   fi
   run rm -f "$UNIT_FILE" "$BINDIR/clipdeck" "$BINDIR/clipdeckd"
   run rm -f "$BINDIR/clipdeck-ui" "${PREFIX}/share/applications/clipdeck.desktop"
-  if command -v systemctl >/dev/null 2>&1; then
+  run rm -f "$BINDIR/clipdeck-session" "${HOME}/.config/autostart/clipdeck-session.desktop"
+  if [ "$HAD_UNIT" = 1 ] && command -v systemctl >/dev/null 2>&1; then
     run systemctl_user daemon-reload || true
   fi
   say "Done. Your history is kept in ~/.local/share/clipdeck and ~/.local/state/clipdeck."
@@ -168,6 +171,14 @@ if [ "$WITH_UI" = 1 ]; then
   fi
   "$UI_ENV/bin/pip" install "$UI_SOURCE" || die "Qt installation failed; existing binaries are unchanged. Retry with --daemon-only to skip the graphical app."
   QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$UI_ENV/bin/clipdeck-ui" --smoke-test || die "Graphical app preflight failed; existing binaries are unchanged"
+  if [ "$FROM_SOURCE" = 1 ]; then
+    cp "$SRC/packaging/clipdeck-session" "$TMP/clipdeck-session"
+  else
+    curl -fSsL --connect-timeout 10 --max-time 30 -o "$TMP/clipdeck-session" "${RELEASE_BASE}/v${VERSION}/clipdeck-session" || die "Session startup helper unavailable"
+    awk '$2 == "clipdeck-session" || $2 == "./clipdeck-session" { print }' "$TMP/SHA256SUMS" > "$TMP/session.sha256"
+    [ "$(wc -l < "$TMP/session.sha256")" = 1 ] || die "Session helper checksum missing or ambiguous"
+    (cd "$TMP" && sha256sum -c session.sha256) || die "Session startup helper checksum mismatch"
+  fi
 fi
 
 # ---------------------------------------------------------------- install
@@ -207,6 +218,7 @@ fi
 run rm -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeck.old"
 
 if [ "$WITH_UI" = 1 ]; then
+  run install -m755 "$TMP/clipdeck-session" "$BINDIR/clipdeck-session"
   ln -sfn "$UI_ENV/bin/clipdeck-ui" "$BINDIR/clipdeck-ui"
   run install -d "${PREFIX}/share/applications"
   # Desktop Entry Exec uses double-quoted argument escaping, not shell syntax.
@@ -216,6 +228,15 @@ path = os.environ['UI_LAUNCHER']
 quoted = '"' + ''.join('\\' + ch if ch in '\\"`$' else ch for ch in path).replace('%', '%%') + '"'
 pathlib.Path(sys.argv[1]).write_text('[Desktop Entry]\nType=Application\nName=ClipDeck\nComment=Clipboard history\nExec=' + quoted + '\nIcon=edit-paste\nTerminal=false\nCategories=Utility;\nStartupWMClass=clipdeck-ui\n')
 PY
+  if [ "$SERVICE" = 1 ]; then
+    run install -d "${HOME}/.config/autostart"
+    UI_LAUNCHER="$BINDIR/clipdeck-session" python3 - "${HOME}/.config/autostart/clipdeck-session.desktop" <<'PY'
+import os, pathlib, sys
+path = os.environ['UI_LAUNCHER']
+quoted = '"' + ''.join('\\' + ch if ch in '\\"`$' else ch for ch in path).replace('%', '%%') + '"'
+pathlib.Path(sys.argv[1]).write_text('[Desktop Entry]\nType=Application\nName=ClipDeck session\nExec=' + quoted + '\nTerminal=false\nNoDisplay=true\n')
+PY
+  fi
   say "Graphical app installed. Open ClipDeck from your application menu or run: $BINDIR/clipdeck-ui"
 fi
 
@@ -257,8 +278,8 @@ case ":${PATH}:" in
   *) warn "${BINDIR} is not in your PATH — add it to your shell profile" ;;
 esac
 if [ "${XDG_SESSION_TYPE:-}" = x11 ] || { [ -z "${WAYLAND_DISPLAY:-}" ] && [ -n "${DISPLAY:-}" ]; }; then
-  for dep in xclip xdotool; do
-    command -v "$dep" >/dev/null 2>&1 || warn "Missing $dep. Ubuntu/Zorin: sudo apt install xclip xdotool; Arch/i3: sudo pacman -S xclip xdotool"
+  for dep in xclip xdotool xprop; do
+    command -v "$dep" >/dev/null 2>&1 || warn "Missing $dep. Ubuntu/Zorin: sudo apt install xclip xdotool x11-utils; Arch/i3: sudo pacman -S xclip xdotool xorg-xprop"
   done
 else
   for dep in wl-paste wtype; do

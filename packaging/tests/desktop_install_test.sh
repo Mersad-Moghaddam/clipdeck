@@ -15,4 +15,9 @@ HOME="$tmp/home" bash "$root/packaging/install.sh" --prefix "$tmp/prefix" --unin
 test ! -e "$tmp/prefix/bin/clipdeck-ui"
 test ! -e "$tmp/prefix/share/applications/clipdeck.desktop"
 test -e "$tmp/home/.local/share/clipdeck/keep"
+mkdir -p "$tmp/home/.config/autostart"
+touch "$tmp/home/.config/autostart/clipdeck-session.desktop" "$tmp/prefix/bin/clipdeck-session"
+HOME="$tmp/home" bash "$root/packaging/install.sh" --prefix "$tmp/prefix" --uninstall >/dev/null 2>&1
+test ! -e "$tmp/home/.config/autostart/clipdeck-session.desktop"
+test ! -e "$tmp/prefix/bin/clipdeck-session"
 echo 'PASS: explicit GUI/daemon installer modes and help'

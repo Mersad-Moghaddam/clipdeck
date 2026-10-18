@@ -114,6 +114,15 @@ func (*x11Backend) Paste(ctx context.Context, w Window) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
+	class, err := helperOutput(ctx, "xprop", "-id", w.ID, "WM_CLASS")
+	if err != nil {
+		return fmt.Errorf("verify paste target identity: %w", err)
+	}
+	for _, field := range strings.Split(string(class), "\"") {
+		if strings.EqualFold(strings.TrimSpace(field), "clipdeck-ui") {
+			return fmt.Errorf("paste target is the ClipDeck popup; copy and paste manually")
+		}
+	}
 	if err := exec.CommandContext(ctx, "xdotool", "windowactivate", "--sync", w.ID).Run(); err != nil {
 		return fmt.Errorf("restore target: %w", err)
 	}

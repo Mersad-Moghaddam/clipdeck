@@ -375,9 +375,11 @@ func (c *Capturer) SnapshotCurrent() (*store.Item, error) {
 			return item, nil
 		}
 		if strings.HasPrefix(selection.MIME, "image/") {
-			return c.ProcessImageContent(selection.Data, selection.MIME, "")
+			win, _ := c.backend.ActiveWindow(context.Background())
+			return c.ProcessImageContent(selection.Data, selection.MIME, hypr.SanitizeAppClass(win.Class))
 		}
-		return c.ProcessTextContent(string(selection.Data), []string{selection.MIME}, "")
+		win, _ := c.backend.ActiveWindow(context.Background())
+		return c.ProcessTextContent(string(selection.Data), []string{selection.MIME}, hypr.SanitizeAppClass(win.Class))
 	}
 	// Query current types from wl-paste
 	cmd := exec.Command("wl-paste", "--list-types")
