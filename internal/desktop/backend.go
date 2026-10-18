@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"time"
 )
 
 const MaxSelectionBytes = 32 << 20
@@ -26,6 +27,9 @@ type Backend interface {
 // helperOutput bounds retained output even when a clipboard owner is hostile.
 func helperOutput(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Descendants may inherit stdout even after the immediate helper is killed.
+	// Bound waiting for the copy goroutine as well as the process itself.
+	cmd.WaitDelay = 100 * time.Millisecond
 	var out limitedBuffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
