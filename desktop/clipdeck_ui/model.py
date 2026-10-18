@@ -47,6 +47,12 @@ class PopupController(QObject):
         self._message = ""
         self.changed.emit()
 
+    def reopen(self, window_id):
+        self.set_target(window_id)
+        self.open()
+        self.search(self._query, self._category)
+        self.client.connect_to_daemon()
+
     @Slot()
     def dismiss(self):
         self._visible = False
