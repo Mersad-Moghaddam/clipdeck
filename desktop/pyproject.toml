@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipdeck-ui"
+version = "0.5.0"
+description = "Standalone Omarchy-style clipboard popup for ClipDeck"
+requires-python = ">=3.12"
+dependencies = ["PySide6-Essentials>=6.6,<7"]
+
+[project.scripts]
+clipdeck-ui = "clipdeck_ui.__main__:main"
+
+[tool.setuptools.package-data]
+clipdeck_ui = ["qml/*.qml", "fonts/*.ttf", "fonts/OFL.txt"]

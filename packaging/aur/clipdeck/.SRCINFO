@@ -1,6 +1,6 @@
 pkgbase = clipdeck
-	pkgdesc = A keyboard-first clipboard manager daemon and CLI for Omarchy 4 and Wayland
-	pkgver = 0.4.3
+	pkgdesc = A keyboard-first clipboard manager daemon and CLI for X11 and compatible Wayland desktops
+	pkgver = 0.5.0
 	pkgrel = 1
 	url = https://github.com/Mersad-Moghaddam/clipdeck
 	arch = x86_64
@@ -8,13 +8,16 @@ pkgbase = clipdeck
 	license = MIT
 	makedepends = go
 	makedepends = git
+	optdepends = xclip: X11 clipboard capture and copy
+	optdepends = xdotool: X11 target activation and paste
+	optdepends = xorg-xprop: X11 window identity verification
 	optdepends = wl-clipboard: Wayland clipboard capture and copy
 	optdepends = wtype: active window direct paste simulation
 	optdepends = hyprland: Wayland compositor window focus queries
 	optdepends = fuzzel: menu selector for clipdeck pick
 	optdepends = rofi: menu selector for clipdeck pick
 	optdepends = wofi: menu selector for clipdeck pick
-	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.4.3
+	source = clipdeck::git+https://github.com/Mersad-Moghaddam/clipdeck.git#tag=v0.5.0
 	sha256sums = SKIP
 
 pkgname = clipdeck

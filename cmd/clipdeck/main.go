@@ -200,6 +200,8 @@ func runDoctor(cfg *config.Config, out io.Writer) bool {
 	// 1. Session & Protocol checks
 	waylandDisplay := os.Getenv("WAYLAND_DISPLAY")
 	desktop := os.Getenv("XDG_CURRENT_DESKTOP")
+	isX11 := os.Getenv("XDG_SESSION_TYPE") == "x11" || (os.Getenv("XDG_SESSION_TYPE") == "" && waylandDisplay == "" && os.Getenv("DISPLAY") != "")
+	sessionName := "Session / Wayland"
 	sessionMsg := "Wayland active (" + waylandDisplay + ")"
 	if desktop != "" {
 		sessionMsg += " on " + desktop
@@ -208,8 +210,16 @@ func runDoctor(cfg *config.Config, out io.Writer) bool {
 	if !sessionPassed {
 		sessionMsg = "WAYLAND_DISPLAY unset; clipboard monitoring requires a Wayland session"
 	}
+	if isX11 {
+		sessionName = "Session / X11"
+		sessionPassed = os.Getenv("DISPLAY") != ""
+		sessionMsg = "X11 active (" + os.Getenv("DISPLAY") + ")"
+		if !sessionPassed {
+			sessionMsg = "DISPLAY unset; launch from your X11 desktop"
+		}
+	}
 	checks = append(checks, checkItem{
-		Name:     "Session / Wayland",
+		Name:     sessionName,
 		Required: false,
 		Passed:   sessionPassed,
 		Message:  sessionMsg,
@@ -240,6 +250,17 @@ func runDoctor(cfg *config.Config, out io.Writer) bool {
 		{"wtype", false, "Virtual keyboard direct-paste tool"},
 		{"hyprctl", false, "Hyprland IPC client"},
 		{"quickshell", false, "Omarchy Quattro shell engine"},
+	}
+	if isX11 {
+		binaries = []struct {
+			bin      string
+			required bool
+			desc     string
+		}{
+			{"xclip", true, "X11 clipboard capture and copy"},
+			{"xdotool", false, "X11 target focus and paste"},
+			{"xprop", false, "X11 window class attribution"},
+		}
 	}
 
 	for _, b := range binaries {

@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-VERSION ?= 0.4.3
+VERSION ?= 0.5.0
 ARCH ?= amd64
 LDFLAGS := -s -w -X main.version=$(VERSION)
 PREFIX ?= $(shell echo $$HOME)/.local

@@ -9,6 +9,8 @@ import (
 )
 
 func TestDoctorRunsWithoutCrashing(t *testing.T) {
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-test")
 	cfg := config.DefaultConfig("dev")
 	cfg.Storage.DataDir = t.TempDir()
 
@@ -27,5 +29,22 @@ func TestDoctorRunsWithoutCrashing(t *testing.T) {
 		if !strings.Contains(output, s) {
 			t.Errorf("doctor output missing %q:\n%s", s, output)
 		}
+	}
+}
+
+func TestDoctorX11DoesNotRequireWayland(t *testing.T) {
+	t.Setenv("XDG_SESSION_TYPE", "x11")
+	t.Setenv("DISPLAY", ":99")
+	t.Setenv("WAYLAND_DISPLAY", "")
+	cfg := config.DefaultConfig("dev")
+	cfg.Storage.DataDir = t.TempDir()
+	var buf bytes.Buffer
+	runDoctor(cfg, &buf)
+	output := buf.String()
+	if !strings.Contains(output, "Session / X11") || !strings.Contains(output, "xclip") {
+		t.Fatalf("X11 diagnostics missing: %s", output)
+	}
+	if strings.Contains(output, "wl-paste") {
+		t.Fatalf("Wayland dependency required on X11: %s", output)
 	}
 }

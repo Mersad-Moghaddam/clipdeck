@@ -20,6 +20,7 @@ import (
 
 	"github.com/Mersad-Moghaddam/clipdeck/internal/capture"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/config"
+	"github.com/Mersad-Moghaddam/clipdeck/internal/desktop"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/hypr"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/store"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/transform"
@@ -643,9 +644,11 @@ func (s *Server) handleCopy(params json.RawMessage) (any, *RPCError) {
 }
 
 type PasteParams struct {
-	ID        string `json:"id"`
-	Plain     bool   `json:"plain"`
-	Transform string `json:"transform"`
+	Confirmed    bool   `json:"confirmed"`
+	TargetWindow string `json:"target_window"`
+	ID           string `json:"id"`
+	Plain        bool   `json:"plain"`
+	Transform    string `json:"transform"`
 }
 
 func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCError) {
@@ -665,6 +668,21 @@ func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCEr
 	}
 
 	// Dispatch paste directly
+	if p.Confirmed {
+		backend, err := desktop.NativeBackend()
+		if err != nil {
+			return nil, &RPCError{Code: -32000, Message: "Copied — automatic paste unavailable: " + err.Error()}
+		}
+		if session, _ := desktop.DetectSession(os.Getenv); session != "x11" {
+			return map[string]any{"success": true, "copied": true, "pasted": false}, nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := backend.Paste(ctx, desktop.Window{ID: p.TargetWindow}); err != nil {
+			return nil, &RPCError{Code: -32000, Message: "Copied — " + err.Error() + ". Paste manually with Ctrl+V."}
+		}
+		return map[string]any{"success": true, "copied": true, "pasted": true}, nil
+	}
 	go func() {
 		if err := hypr.PasteDirectly(); err != nil {
 			s.sendEvent(conn, "paste_failed", map[string]any{"id": p.ID, "message": "Copied; paste injection unavailable. Paste manually with Ctrl+V."})
@@ -675,12 +693,22 @@ func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCEr
 }
 
 func copyToClipboard(text, mime string) error {
+	if session, err := desktop.DetectSession(os.Getenv); err == nil && session == "x11" {
+		return desktop.NewX11Backend().Write(context.Background(), desktop.Selection{MIME: mime, Data: []byte(text)})
+	}
 	cmd := exec.Command("wl-copy", "--type", mime)
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
 }
 
 func copyFileToClipboard(filePath, mime string) error {
+	if session, err := desktop.DetectSession(os.Getenv); err == nil && session == "x11" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+		return desktop.NewX11Backend().Write(context.Background(), desktop.Selection{MIME: mime, Data: data})
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return err
