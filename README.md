@@ -5,7 +5,9 @@
 [![License](https://img.shields.io/github/license/Mersad-Moghaddam/clipdeck)](LICENSE)
 [![CI](https://github.com/Mersad-Moghaddam/clipdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/Mersad-Moghaddam/clipdeck/actions/workflows/ci.yml)
 
-ClipDeck is a keyboard-first clipboard manager daemon and CLI for Omarchy, Hyprland, and modern Wayland desktops.
+ClipDeck is a keyboard-first clipboard manager with a standalone graphical popup,
+daemon, and CLI for Linux X11 and compatible Wayland desktops. The existing
+Omarchy overlay remains available separately.
 
 Built in pure Go with zero CGO dependencies (`modernc.org/sqlite` with FTS5 trigram search), ClipDeck combines persistent clipboard history with automatic content classification, sensitive token protection, and low-latency JSON-lines IPC.
 
@@ -37,15 +39,53 @@ hyprctl (active window) ────┼──▶ clipdeckd (Go) ──▶ SQLite
 
 ## Installation
 
-### Universal installer (recommended)
+### Guided installation
 
-Install or update to the newest version on any Linux distribution (`amd64` and `arm64`):
+The portable daemon supports `amd64` and `arm64`. The optional popup requires
+Python 3.10+, a compatible Qt wheel, and a graphical desktop. Check the
+[support matrix](docs/desktop-support.md) before installing; GNOME Wayland does
+not expose the clipboard-watch protocol used by this daemon. On Ubuntu/Zorin,
+select an X11 session for clipboard capture.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
+# Download a version-pinned installer, inspect it, then preview its actions.
+curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.0/packaging/install.sh -o clipdeck-install.sh
+less clipdeck-install.sh
+bash clipdeck-install.sh --version 0.5.0 --with-ui --dry-run
+bash clipdeck-install.sh --version 0.5.0 --with-ui
 ```
 
-The script verifies architecture, checks SHA256 checksums, installs binaries atomically into `~/.local/bin/`, sets up the systemd user service, and executes `clipdeck doctor`. Re-running this command at any time updates ClipDeck to the latest release. Pass `--from-source` to compile with Go instead of fetching binaries.
+The script verifies downloaded release checksums, installs into `~/.local`, and
+sets up login startup. `--with-ui` explicitly permits downloading Qt into a private
+Python environment; it never runs sudo or changes system Python. Existing Omarchy
+users can use `--daemon-only` instead. `--no-service` skips startup setup.
+
+Install desktop dependencies first:
+
+```bash
+# Ubuntu/Debian/Zorin, X11 session
+sudo apt install curl ca-certificates python3 python3-venv xclip xdotool x11-utils libegl1 libopengl0 libxcb-cursor0 libglib2.0-0 libdbus-1-3 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1
+# Arch/i3 (alternative, not an additional command)
+# sudo pacman -S python xclip xdotool xorg-xprop
+```
+
+Open **ClipDeck** from the application menu, or run `~/.local/bin/clipdeck-ui`.
+The popup hides after successful copy/paste; running it again reopens the same
+instance. See [opt-in i3 shortcuts and startup](docs/desktop-support.md).
+
+Upgrade by rerunning the installer with the desired version. History and config
+are retained. If Qt download/preflight fails, the existing binaries are unchanged;
+retry or choose `--daemon-only`. Before an upgrade, close the standalone popup
+process so the next launch uses the new version. To remove launchers and startup
+while keeping history/configuration:
+
+```bash
+bash clipdeck-install.sh --uninstall
+```
+
+Private Qt environments are retained under `~/.local/share/clipdeck/ui-*` for
+recovery. They can be removed manually once no popup uses them. Run
+`~/.local/bin/clipdeck doctor` for session/dependency diagnostics.
 
 ### Standalone desktop app (v0.5.0 development)
 

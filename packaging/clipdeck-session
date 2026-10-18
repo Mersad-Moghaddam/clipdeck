@@ -5,10 +5,10 @@ bindir=$(cd -- "$(dirname -- "$0")" && pwd)
 if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
   variables=()
   for name in DISPLAY XAUTHORITY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE; do
-    [[ -z ${!name:-} ]] || variables+=("$name")
+    if [[ -n ${!name:-} ]]; then variables+=("$name"); else systemctl --user unset-environment "$name"; fi
   done
   if [[ ${#variables[@]} -gt 0 ]]; then systemctl --user import-environment "${variables[@]}"; fi
-  exec systemctl --user start clipdeckd.service
+  exec systemctl --user restart clipdeckd.service
 fi
 command -v flock >/dev/null || { echo 'ClipDeck session startup needs flock (util-linux).' >&2; exit 1; }
 runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}

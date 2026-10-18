@@ -133,5 +133,7 @@ func (*x11Backend) Paste(ctx context.Context, w Window) error {
 	if strings.TrimSpace(string(active)) != w.ID {
 		return fmt.Errorf("paste target lost focus; copied, paste manually")
 	}
-	return exec.CommandContext(ctx, "xdotool", "key", "--clearmodifiers", "ctrl+v").Run()
+	// Bind delivery to the validated target; a focus change after the check
+	// must not redirect clipboard content into an unrelated application.
+	return exec.CommandContext(ctx, "xdotool", "key", "--window", w.ID, "--clearmodifiers", "ctrl+v").Run()
 }

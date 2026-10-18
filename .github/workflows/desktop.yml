@@ -37,5 +37,7 @@ jobs:
           bash packaging/tests/desktop_install_test.sh
           bash packaging/tests/session_test.sh
           bash packaging/tests/uninstall_scope_test.sh
+          bash packaging/tests/gui_rollback_test.sh
+          bash packaging/tests/transaction_test.sh
       - name: Build standalone wheel
         run: python -m pip wheel --no-deps --wheel-dir dist ./desktop

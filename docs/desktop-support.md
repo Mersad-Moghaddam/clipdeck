@@ -1,7 +1,7 @@
 # Desktop support (v0.5.0 development)
 
-The standalone popup is under development. These are implementation and test
-results, not a claim that every distribution or desktop has been certified.
+These are implementation and test results, not a claim that every distribution
+or desktop has been certified.
 
 | Environment | Capture/copy | Automatic paste | Evidence |
 |---|---|---|---|
@@ -32,7 +32,7 @@ the popup, before ClipDeck will inject Ctrl+V.
 Install dependencies on Debian/Ubuntu/Zorin:
 
 ```bash
-sudo apt install python3 python3-venv xclip xdotool x11-utils
+sudo apt install python3 python3-venv xclip xdotool x11-utils libegl1 libopengl0 libxcb-cursor0 libglib2.0-0 libdbus-1-3 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1
 ```
 
 On Arch/i3:
@@ -44,10 +44,10 @@ sudo pacman -S python xclip xdotool xorg-xprop
 ## Typography
 
 The standalone app mirrors Omarchy's 12px typography scale: caption 10,
-body-small 11, body 12, subtitle 13, and title 14. It targets JetBrainsMono Nerd
-Font and respects `OMARCHY_MENU_FONT`; missing-font provisioning and visual
-acceptance are release gates, not yet complete. No font assets are redistributed
-by the current development build.
+body-small 11, body 12, subtitle 13, and title 14. It bundles regular/bold
+JetBrainsMono Nerd Font under SIL OFL 1.1 and respects `OMARCHY_MENU_FONT`.
+Active Omarchy palette and font-size overrides are read at launch. See
+[design provenance](standalone-design.md) for configuration and licensing.
 
 ## Startup
 

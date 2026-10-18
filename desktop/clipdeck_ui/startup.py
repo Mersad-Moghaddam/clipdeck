@@ -12,6 +12,10 @@ def session_environment(env=None):
 def enable_service():
     """User-triggered action; no root, shell, downloads, or config rewriting."""
     values = session_environment()
+    for key in ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "HYPRLAND_INSTANCE_SIGNATURE"):
+        if key not in values:
+            subprocess.run(["systemctl", "--user", "unset-environment", key], check=True, timeout=5)
     if values:
         subprocess.run(["systemctl", "--user", "import-environment", *values], check=True, timeout=5)
-    subprocess.run(["systemctl", "--user", "enable", "--now", "clipdeckd.service"], check=True, timeout=10)
+    subprocess.run(["systemctl", "--user", "enable", "clipdeckd.service"], check=True, timeout=10)
+    subprocess.run(["systemctl", "--user", "restart", "clipdeckd.service"], check=True, timeout=10)

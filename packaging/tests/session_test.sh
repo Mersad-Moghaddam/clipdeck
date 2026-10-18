@@ -13,5 +13,5 @@ LOG="$tmp/log" PATH="$tmp/bin:$PATH" DISPLAY=:88 XAUTHORITY=/example XDG_SESSION
 grep -q -- '--user import-environment' "$tmp/log"
 grep -q 'DISPLAY' "$tmp/log"
 ! grep -q 'API_TOKEN\|private' "$tmp/log"
-grep -q -- '--user start clipdeckd.service' "$tmp/log"
+grep -q -- '--user restart clipdeckd.service' "$tmp/log"
 echo 'PASS: session startup imports graphical environment only and starts user service'

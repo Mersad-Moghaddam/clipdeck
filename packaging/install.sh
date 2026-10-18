@@ -100,7 +100,44 @@ fi
 say "Installing ClipDeck ${VERSION} (${ARCH}) into ${PREFIX}"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+UI_ENV=""
+UI_COMMITTED=0
+TRANSACTION=0
+COMMITTED=0
+WAS_ACTIVE=0
+WAS_ENABLED=0
+declare -a SAVED_PATHS=()
+snapshot() {
+  local path=$1 index=${#SAVED_PATHS[@]}
+  SAVED_PATHS+=("$path")
+  if [ -e "$path" ] || [ -L "$path" ]; then cp -a -- "$path" "$TMP/saved-$index"; fi
+}
+cleanup() {
+  local status=$? index path
+  if [ "$TRANSACTION" = 1 ] && [ "$COMMITTED" = 0 ]; then
+    warn "Installation failed; restoring the previous installation"
+    for index in "${!SAVED_PATHS[@]}"; do
+      path=${SAVED_PATHS[$index]}
+      rm -f -- "$path"
+      if [ -e "$TMP/saved-$index" ] || [ -L "$TMP/saved-$index" ]; then cp -a -- "$TMP/saved-$index" "$path"; fi
+    done
+    rm -f -- "$BINDIR/clipdeck.new" "$BINDIR/clipdeckd.new"
+    if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null 2>&1; then
+      systemctl_user daemon-reload || true
+      if [ "$WAS_ENABLED" = 0 ]; then systemctl_user disable clipdeckd.service >/dev/null 2>&1 || true; fi
+      if [ "$WAS_ACTIVE" = 1 ]; then systemctl_user restart clipdeckd.service || true
+      else systemctl_user stop clipdeckd.service >/dev/null 2>&1 || true; fi
+    fi
+  fi
+  rm -rf "$TMP"
+  if [ -n "$UI_ENV" ] && [ "$UI_COMMITTED" = 0 ]; then
+    rm -rf -- "$UI_ENV"
+  fi
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ "$WITH_UI" = 1 ]; then
   command -v python3 >/dev/null 2>&1 || die "The graphical app needs Python 3.10+. Ubuntu/Zorin: sudo apt install python3 python3-venv"
@@ -153,8 +190,8 @@ fi
 # Stage GUI dependencies before changing the installed binaries. --with-ui is
 # explicit consent to install the Qt runtime; no sudo/package-manager commands.
 if [ "$WITH_UI" = 1 ]; then
-  UI_ENV="${PREFIX}/share/clipdeck/ui-${VERSION}-$(date +%s)"
   run install -d "${PREFIX}/share/clipdeck"
+  UI_ENV=$(mktemp -d "${PREFIX}/share/clipdeck/ui-${VERSION}-XXXXXXXX")
   if ! python3 -m venv "$UI_ENV"; then
     die "Cannot create a Python environment. Ubuntu/Zorin: sudo apt install python3-venv; then retry."
   fi
@@ -171,6 +208,7 @@ if [ "$WITH_UI" = 1 ]; then
   fi
   "$UI_ENV/bin/pip" install "$UI_SOURCE" || die "Qt installation failed; existing binaries are unchanged. Retry with --daemon-only to skip the graphical app."
   QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$UI_ENV/bin/clipdeck-ui" --smoke-test || die "Graphical app preflight failed; existing binaries are unchanged"
+  "$UI_ENV/bin/python" -m clipdeck_ui.preflight || die "Native Qt preflight failed; existing installation unchanged. Install the desktop libraries listed in docs/desktop-support.md and retry."
   if [ "$FROM_SOURCE" = 1 ]; then
     cp "$SRC/packaging/clipdeck-session" "$TMP/clipdeck-session"
   else
@@ -182,40 +220,20 @@ if [ "$WITH_UI" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- install
+for path in "$BINDIR/clipdeck" "$BINDIR/clipdeckd" "$BINDIR/clipdeck-ui" "$BINDIR/clipdeck-session" "${PREFIX}/share/applications/clipdeck.desktop" "${HOME}/.config/autostart/clipdeck-session.desktop" "$UNIT_FILE"; do
+  snapshot "$path"
+done
+if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null 2>&1; then
+  if systemctl_user is-active --quiet clipdeckd.service; then WAS_ACTIVE=1; fi
+  if systemctl_user is-enabled --quiet clipdeckd.service; then WAS_ENABLED=1; fi
+fi
+TRANSACTION=1
 run install -d "$BINDIR"
 run install -m 755 "$TMP/clipdeckd" "$BINDIR/clipdeckd.new"
 run install -m 755 "$TMP/clipdeck"  "$BINDIR/clipdeck.new"
 
-BACKUP_D=0
-BACKUP_C=0
-if [ -e "$BINDIR/clipdeckd" ]; then
-  run cp -p "$BINDIR/clipdeckd" "$BINDIR/clipdeckd.old"
-  BACKUP_D=1
-fi
-if [ -e "$BINDIR/clipdeck" ]; then
-  run cp -p "$BINDIR/clipdeck" "$BINDIR/clipdeck.old"
-  BACKUP_C=1
-fi
-
-if ! run mv -f "$BINDIR/clipdeckd.new" "$BINDIR/clipdeckd"; then
-  run rm -f "$BINDIR/clipdeckd.new" "$BINDIR/clipdeck.new"
-  [ "$BACKUP_D" = 1 ] && run rm -f "$BINDIR/clipdeckd.old"
-  [ "$BACKUP_C" = 1 ] && run rm -f "$BINDIR/clipdeck.old"
-  die "could not install clipdeckd"
-fi
-
-if ! run mv -f "$BINDIR/clipdeck.new" "$BINDIR/clipdeck"; then
-  run rm -f "$BINDIR/clipdeck.new"
-  if [ "$BACKUP_D" = 1 ]; then
-    run mv -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeckd"
-  else
-    run rm -f "$BINDIR/clipdeckd"
-  fi
-  [ "$BACKUP_C" = 1 ] && run rm -f "$BINDIR/clipdeck.old"
-  die "could not install clipdeck; restored prior binaries"
-fi
-
-run rm -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeck.old"
+run mv -f "$BINDIR/clipdeckd.new" "$BINDIR/clipdeckd" || die "could not install clipdeckd"
+run mv -f "$BINDIR/clipdeck.new" "$BINDIR/clipdeck" || die "could not install clipdeck"
 
 if [ "$WITH_UI" = 1 ]; then
   run install -m755 "$TMP/clipdeck-session" "$BINDIR/clipdeck-session"
@@ -243,8 +261,7 @@ fi
 if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null 2>&1; then
   run install -d "$UNIT_DIR"
   if [ -f "$REPO_ROOT/packaging/clipdeckd.service" ]; then
-    sed "s|/usr/bin/clipdeckd|${BINDIR}/clipdeckd|" \
-      "$REPO_ROOT/packaging/clipdeckd.service" > "$TMP/clipdeckd.service"
+    cp "$REPO_ROOT/packaging/clipdeckd.service" "$TMP/clipdeckd.service"
   else
     cat > "$TMP/clipdeckd.service" <<EOF
 [Unit]
@@ -254,7 +271,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=${BINDIR}/clipdeckd
+ExecStart=/usr/bin/clipdeckd
 Restart=always
 RestartSec=1s
 RuntimeDirectory=clipdeck
@@ -264,13 +281,29 @@ StateDirectory=clipdeck
 WantedBy=graphical-session.target
 EOF
   fi
+  # Quote systemd's executable token (not shell quoting); escape specifiers.
+  executable=${BINDIR//\\/\\\\}/clipdeckd
+  executable=${executable//\"/\\\"}
+  executable=${executable//%/%%}
+  executable=${executable//\$/\$\$}
+  while IFS= read -r line; do
+    if [[ $line = ExecStart=* ]]; then printf 'ExecStart="%s"\n' "$executable"; else printf '%s\n' "$line"; fi
+  done < "$TMP/clipdeckd.service" > "$TMP/quoted.service"
+  mv "$TMP/quoted.service" "$TMP/clipdeckd.service"
   run install -m 644 "$TMP/clipdeckd.service" "$UNIT_FILE"
-  run systemctl_user daemon-reload || true
-  run systemctl_user enable --now clipdeckd.service || \
-    warn "could not start the service now — it will start with your next login"
+  run systemctl_user daemon-reload
+  variables=()
+  for name in DISPLAY XAUTHORITY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE; do
+    if [ -n "${!name:-}" ]; then variables+=("$name"); else run systemctl_user unset-environment "$name"; fi
+  done
+  if [ ${#variables[@]} -gt 0 ]; then run systemctl_user import-environment "${variables[@]}"; fi
+  run systemctl_user enable clipdeckd.service
+  run systemctl_user restart clipdeckd.service || die "New daemon failed to start"
 else
   warn "systemd not found (or --no-service): start the daemon manually with '${BINDIR}/clipdeckd &'"
 fi
+COMMITTED=1
+UI_COMMITTED=1
 
 # ---------------------------------------------------------------- hints
 case ":${PATH}:" in

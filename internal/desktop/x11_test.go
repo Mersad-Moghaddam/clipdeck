@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -105,5 +106,30 @@ func TestX11PasteRejectsPopupTarget(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("injected into popup")
+	}
+}
+
+func TestX11PasteInjectionIsBoundToValidatedWindow(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "keys")
+	t.Setenv("KEY_LOG", log)
+	for name, script := range map[string]string{
+		"xdotool": "#!/bin/sh\ncase \"$1\" in getactivewindow) printf '42\\n';; key) printf '%s\\n' \"$*\" >\"$KEY_LOG\";; esac\n",
+		"xprop":   "#!/bin/sh\nprintf 'WM_CLASS(STRING) = \"editor\", \"Editor\"\\n'\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	if err := NewX11Backend().Paste(context.Background(), Window{ID: "42"}); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "--window 42") {
+		t.Fatalf("focus can redirect injection: %s", args)
 	}
 }

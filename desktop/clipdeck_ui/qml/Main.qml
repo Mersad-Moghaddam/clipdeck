@@ -54,7 +54,7 @@ Window {
                     Keys.onDownPressed: { history.forceActiveFocus(); history.currentIndex = Math.max(0, history.currentIndex) }
                 }
                 Text { text: deck.items.length + " shown"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
-                Button { text: "×"; onClicked: deck.dismiss() }
+                DeckButton { text: "×"; onClicked: deck.dismiss() }
             }
             RowLayout {
                 id: categories
@@ -62,7 +62,7 @@ Window {
                 spacing: 8
                 Repeater {
                     model: ["All", "Pinned", "Colors", "Code", "Links", "Images", "Text"]
-                    delegate: Button {
+                    delegate: DeckButton {
                         required property string modelData
                         text: modelData
                         font.family: theme.fontFamily; font.pixelSize: theme.caption
@@ -113,8 +113,8 @@ Window {
                     RowLayout {
                         Text { text: deck.selected.type || "Preview"; color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.subtitle; font.bold: true }
                         Item { Layout.fillWidth: true }
-                        Button { text: deck.selected.pinned ? "Unpin Ctrl+P" : "Pin Ctrl+P"; enabled: !!deck.selected.id; onClicked: deck.pin_item(deck.selected.id, !deck.selected.pinned) }
-                        Button { text: "Delete"; enabled: !!deck.selected.id; onClicked: deck.delete_item(deck.selected.id) }
+                        DeckButton { text: deck.selected.pinned ? "Unpin Ctrl+P" : "Pin Ctrl+P"; enabled: !!deck.selected.id; onClicked: deck.pin_item(deck.selected.id, !deck.selected.pinned) }
+                        DeckButton { text: "Delete"; enabled: !!deck.selected.id; onClicked: deck.delete_item(deck.selected.id) }
                     }
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true; color: theme.surface; radius: theme.radius
@@ -126,10 +126,10 @@ Window {
                         Image { anchors.fill: parent; anchors.margins: 16; visible: deck.imageSource.length > 0; source: deck.imageSource; fillMode: Image.PreserveAspectFit; asynchronous: true }
                     }
                     RowLayout {
-                        Button { text: "Paste Enter"; enabled: !!deck.selected.id; onClicked: deck.paste_item(deck.selected.id); background: Rectangle { color: theme.accent; radius: 12 } }
-                        Button { text: "Copy Ctrl+C"; enabled: !!deck.selected.id; onClicked: deck.copy_item(deck.selected.id) }
-                        Button { text: "Merge " + window.selectedIds.length; visible: window.selectedIds.length > 1; onClicked: deck.merge_copy(window.selectedIds) }
-                        Button { text: "Transform"; enabled: !!deck.selected.id && deck.selected.type !== "image"; onClicked: transformMenu.open()
+                        DeckButton { text: "Paste Enter"; enabled: !!deck.selected.id; onClicked: deck.paste_item(deck.selected.id); primary: true }
+                        DeckButton { text: "Copy Ctrl+C"; enabled: !!deck.selected.id; onClicked: deck.copy_item(deck.selected.id) }
+                        DeckButton { text: "Merge " + window.selectedIds.length; visible: window.selectedIds.length > 1; onClicked: deck.merge_copy(window.selectedIds) }
+                        DeckButton { text: "Transform"; enabled: !!deck.selected.id && deck.selected.type !== "image"; onClicked: transformMenu.open()
                             Menu { id: transformMenu
                                 MenuItem { text: "Copy uppercase"; onTriggered: deck.copy_transformed(deck.selected.id, "uppercase") }
                                 MenuItem { text: "Copy lowercase"; onTriggered: deck.copy_transformed(deck.selected.id, "lowercase") }
@@ -137,15 +137,15 @@ Window {
                             }
                         }
                         Item { Layout.fillWidth: true }
-                        Button { text: "Load more"; visible: deck.hasMore; onClicked: deck.load_more() }
+                        DeckButton { text: "Load more"; visible: deck.hasMore; onClicked: deck.load_more() }
                     }
                 }
             }
             RowLayout {
                 visible: deck.message.length > 0
                 Text { Layout.fillWidth: true; text: deck.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: theme.accent; font.family: theme.fontFamily; font.pixelSize: theme.body }
-                Button { text: "Retry connection"; onClicked: deck.retry_connection() }
-                Button { text: "Start & enable at login"; onClicked: deck.enable_startup() }
+                DeckButton { text: "Retry connection"; onClicked: deck.retry_connection() }
+                DeckButton { text: "Start & enable at login"; onClicked: deck.enable_startup() }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
             Text { text: "Enter paste   Ctrl+C copy   Ctrl+P pin   Ctrl+L search   Esc dismiss"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
