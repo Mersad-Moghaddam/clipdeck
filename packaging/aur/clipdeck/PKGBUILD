@@ -1,6 +1,6 @@
 # Maintainer: Mersad Moghaddam <nickmersad81@gmail.com>
 pkgname=clipdeck
-pkgver=0.5.0
+pkgver=0.5.1
 pkgrel=1
 pkgdesc="A keyboard-first clipboard manager daemon and CLI for X11 and compatible Wayland desktops"
 arch=('x86_64' 'aarch64')
