@@ -1,10 +1,21 @@
 package ipc
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestPasteParamsPreserveConfirmedTarget(t *testing.T) {
+	var p PasteParams
+	if err := json.Unmarshal([]byte(`{"id":"a","confirmed":true,"target_window":"42"}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	if !p.Confirmed || p.TargetWindow != "42" {
+		t.Fatalf("paste params=%+v", p)
+	}
+}
 
 func TestCopyUsesX11Clipboard(t *testing.T) {
 	dir := t.TempDir()

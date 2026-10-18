@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ClipDeck installer — any Linux distro, any Wayland desktop.
+# ClipDeck installer — Linux Wayland and X11 desktops.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
 #
@@ -14,6 +14,8 @@
 #   --no-service     don't enable/start the systemd user service
 #   --dry-run        print what would happen, touch nothing
 #   --uninstall      remove binaries and the user service
+#   --with-ui        also install standalone Qt popup in an isolated Python venv
+#   --daemon-only    install daemon/CLI only (default; keeps Omarchy integration)
 set -euo pipefail
 
 REPO="Mersad-Moghaddam/clipdeck"
@@ -23,6 +25,7 @@ FROM_SOURCE=0
 SERVICE=1
 DRY_RUN=0
 UNINSTALL=0
+WITH_UI=0
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m warn\033[0m %s\n' "$*" >&2; }
@@ -43,7 +46,9 @@ while [ $# -gt 0 ]; do
     --no-service)  SERVICE=0; shift ;;
     --dry-run)     DRY_RUN=1; shift ;;
     --uninstall)   UNINSTALL=1; shift ;;
-    -h|--help)     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --with-ui)     WITH_UI=1; shift ;;
+    --daemon-only) WITH_UI=0; shift ;;
+    -h|--help)     sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)             die "unknown option: $1 (see --help)" ;;
   esac
 done
@@ -69,6 +74,7 @@ if [ "$UNINSTALL" = 1 ]; then
     run systemctl_user disable --now clipdeckd.service || true
   fi
   run rm -f "$UNIT_FILE" "$BINDIR/clipdeck" "$BINDIR/clipdeckd"
+  run rm -f "$BINDIR/clipdeck-ui" "${PREFIX}/share/applications/clipdeck.desktop"
   if command -v systemctl >/dev/null 2>&1; then
     run systemctl_user daemon-reload || true
   fi
@@ -78,7 +84,7 @@ fi
 
 # ---------------------------------------------------------------- resolve version
 if [ "$DRY_RUN" = 1 ]; then
-  say "Dry run: install ${VERSION} (${ARCH}) into ${PREFIX}; service=${SERVICE}; source=${FROM_SOURCE}. No downloads or files changed."
+  say "Dry run: install ${VERSION} (${ARCH}) into ${PREFIX}; service=${SERVICE}; source=${FROM_SOURCE}; ui=${WITH_UI}. No downloads or files changed."
   exit 0
 fi
 if [ "$VERSION" = "latest" ]; then
@@ -92,6 +98,12 @@ say "Installing ClipDeck ${VERSION} (${ARCH}) into ${PREFIX}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+if [ "$WITH_UI" = 1 ]; then
+  command -v python3 >/dev/null 2>&1 || die "The graphical app needs Python 3.10+. Ubuntu/Zorin: sudo apt install python3 python3-venv"
+  python3 -c 'import sys; assert sys.version_info >= (3, 10)' || die "Python 3.10 or newer is required for the graphical app"
+  say "Standalone UI selected: downloads Qt/PySide6 into a private environment; system Python is not changed."
+fi
 
 # ---------------------------------------------------------------- fetch binaries
 if [ "$FROM_SOURCE" = 1 ]; then
@@ -135,6 +147,29 @@ else
   run tar --no-same-owner -C "$TMP" -xzf "$TMP/$TARBALL"
 fi
 
+# Stage GUI dependencies before changing the installed binaries. --with-ui is
+# explicit consent to install the Qt runtime; no sudo/package-manager commands.
+if [ "$WITH_UI" = 1 ]; then
+  UI_ENV="${PREFIX}/share/clipdeck/ui-${VERSION}-$(date +%s)"
+  run install -d "${PREFIX}/share/clipdeck"
+  if ! python3 -m venv "$UI_ENV"; then
+    die "Cannot create a Python environment. Ubuntu/Zorin: sudo apt install python3-venv; then retry."
+  fi
+  if [ "$FROM_SOURCE" = 1 ]; then
+    UI_SOURCE="$SRC/desktop"
+  else
+    UI_WHEEL="clipdeck_ui-${VERSION}-py3-none-any.whl"
+    curl -fSsL --connect-timeout 10 --max-time 300 -o "$TMP/$UI_WHEEL" "${RELEASE_BASE}/v${VERSION}/${UI_WHEEL}" || die "Could not download graphical app; existing binaries are unchanged"
+    curl -fSsL --connect-timeout 10 --max-time 30 -o "$TMP/SHA256SUMS" "${RELEASE_BASE}/v${VERSION}/SHA256SUMS" || die "GUI checksum manifest unavailable"
+    awk -v file="$UI_WHEEL" '$2 == file || $2 == "./" file { print }' "$TMP/SHA256SUMS" > "$TMP/ui.sha256"
+    [ "$(wc -l < "$TMP/ui.sha256")" = 1 ] || die "Missing or ambiguous graphical app checksum"
+    (cd "$TMP" && sha256sum -c ui.sha256) || die "Graphical app checksum mismatch"
+    UI_SOURCE="$TMP/$UI_WHEEL"
+  fi
+  "$UI_ENV/bin/pip" install "$UI_SOURCE" || die "Qt installation failed; existing binaries are unchanged. Retry with --daemon-only to skip the graphical app."
+  QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$UI_ENV/bin/clipdeck-ui" --smoke-test || die "Graphical app preflight failed; existing binaries are unchanged"
+fi
+
 # ---------------------------------------------------------------- install
 run install -d "$BINDIR"
 run install -m 755 "$TMP/clipdeckd" "$BINDIR/clipdeckd.new"
@@ -170,6 +205,19 @@ if ! run mv -f "$BINDIR/clipdeck.new" "$BINDIR/clipdeck"; then
 fi
 
 run rm -f "$BINDIR/clipdeckd.old" "$BINDIR/clipdeck.old"
+
+if [ "$WITH_UI" = 1 ]; then
+  ln -sfn "$UI_ENV/bin/clipdeck-ui" "$BINDIR/clipdeck-ui"
+  run install -d "${PREFIX}/share/applications"
+  # Desktop Entry Exec uses double-quoted argument escaping, not shell syntax.
+  UI_LAUNCHER="$BINDIR/clipdeck-ui" python3 - "${PREFIX}/share/applications/clipdeck.desktop" <<'PY'
+import os, pathlib, sys
+path = os.environ['UI_LAUNCHER']
+quoted = '"' + ''.join('\\' + ch if ch in '\\"`$' else ch for ch in path).replace('%', '%%') + '"'
+pathlib.Path(sys.argv[1]).write_text('[Desktop Entry]\nType=Application\nName=ClipDeck\nComment=Clipboard history\nExec=' + quoted + '\nIcon=edit-paste\nTerminal=false\nCategories=Utility;\nStartupWMClass=clipdeck-ui\n')
+PY
+  say "Graphical app installed. Open ClipDeck from your application menu or run: $BINDIR/clipdeck-ui"
+fi
 
 if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null 2>&1; then
   run install -d "$UNIT_DIR"
@@ -208,9 +256,15 @@ case ":${PATH}:" in
   *":${BINDIR}:"*) ;;
   *) warn "${BINDIR} is not in your PATH — add it to your shell profile" ;;
 esac
-for dep in wl-paste wtype; do
-  command -v "$dep" >/dev/null 2>&1 || warn "'$dep' not found — install wl-clipboard (and wtype for direct paste)"
-done
+if [ "${XDG_SESSION_TYPE:-}" = x11 ] || { [ -z "${WAYLAND_DISPLAY:-}" ] && [ -n "${DISPLAY:-}" ]; }; then
+  for dep in xclip xdotool; do
+    command -v "$dep" >/dev/null 2>&1 || warn "Missing $dep. Ubuntu/Zorin: sudo apt install xclip xdotool; Arch/i3: sudo pacman -S xclip xdotool"
+  done
+else
+  for dep in wl-paste wtype; do
+    command -v "$dep" >/dev/null 2>&1 || warn "'$dep' not found — install wl-clipboard (and wtype for direct paste)"
+  done
+fi
 
 say "Installed. Run '${BINDIR}/clipdeck doctor' to verify."
 if [ "$DRY_RUN" = 0 ] && [ -x "$BINDIR/clipdeck" ]; then

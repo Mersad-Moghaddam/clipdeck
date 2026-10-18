@@ -644,9 +644,11 @@ func (s *Server) handleCopy(params json.RawMessage) (any, *RPCError) {
 }
 
 type PasteParams struct {
-	ID        string `json:"id"`
-	Plain     bool   `json:"plain"`
-	Transform string `json:"transform"`
+	Confirmed    bool   `json:"confirmed"`
+	TargetWindow string `json:"target_window"`
+	ID           string `json:"id"`
+	Plain        bool   `json:"plain"`
+	Transform    string `json:"transform"`
 }
 
 func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCError) {
@@ -666,6 +668,21 @@ func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCEr
 	}
 
 	// Dispatch paste directly
+	if p.Confirmed {
+		backend, err := desktop.NativeBackend()
+		if err != nil {
+			return nil, &RPCError{Code: -32000, Message: "Copied — automatic paste unavailable: " + err.Error()}
+		}
+		if session, _ := desktop.DetectSession(os.Getenv); session != "x11" {
+			return map[string]any{"success": true, "copied": true, "pasted": false}, nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := backend.Paste(ctx, desktop.Window{ID: p.TargetWindow}); err != nil {
+			return nil, &RPCError{Code: -32000, Message: "Copied — " + err.Error() + ". Paste manually with Ctrl+V."}
+		}
+		return map[string]any{"success": true, "copied": true, "pasted": true}, nil
+	}
 	go func() {
 		if err := hypr.PasteDirectly(); err != nil {
 			s.sendEvent(conn, "paste_failed", map[string]any{"id": p.ID, "message": "Copied; paste injection unavailable. Paste manually with Ctrl+V."})

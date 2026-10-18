@@ -47,6 +47,29 @@ curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/pack
 
 The script verifies architecture, checks SHA256 checksums, installs binaries atomically into `~/.local/bin/`, sets up the systemd user service, and executes `clipdeck doctor`. Re-running this command at any time updates ClipDeck to the latest release. Pass `--from-source` to compile with Go instead of fetching binaries.
 
+### Standalone desktop app (v0.5.0 development)
+
+The next release adds a standalone Omarchy-style popup and an X11 backend for
+i3 and other desktops. **v0.5.0 is not published yet.** The existing Omarchy
+overlay is unchanged. See the [desktop support and i3 setup guide](docs/desktop-support.md)
+for tested behavior and remaining release gates.
+
+To try the development checkout (Python 3.10+, Go, and the desktop clipboard
+dependencies are required):
+
+```bash
+# Review the installer and preview its actions before installing.
+bash packaging/install.sh --from-source --version 0.5.0 --with-ui --dry-run
+bash packaging/install.sh --from-source --version 0.5.0 --with-ui
+clipdeck-ui
+```
+
+`--with-ui` downloads Qt into a private Python environment, without modifying
+system Python or running sudo. `--daemon-only` keeps the existing daemon/plugin
+installation path. Ubuntu/Zorin users may need `sudo apt install python3-venv`.
+This is a development-install path; use the published packages below for the
+current stable release. Installation will not rewrite your i3 configuration.
+
 ### Distribution packages
 
 Download and install prebuilt packages for v0.4.3 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases). Downloads below fail closed: a nonempty matching checksum entry and successful verification are required before installation.

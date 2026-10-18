@@ -1,0 +1,37 @@
+name: desktop
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  standalone:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install X11 and headless Qt dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xclip xdotool libegl1 libopengl0 libxkbcommon0
+          python -m pip install ./desktop
+      - name: Frontend behavior and offscreen window
+        env:
+          PYTHONPATH: desktop
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: python -m unittest discover -s desktop/tests -v
+      - name: Real X11 clipboard
+        run: bash scripts/test-x11.sh
+      - name: Installer regressions
+        run: |
+          bash packaging/tests/install_test.sh
+          bash packaging/tests/archive_test.sh
+          bash packaging/tests/desktop_install_test.sh
+      - name: Build standalone wheel
+        run: python -m pip wheel --no-deps --wheel-dir dist ./desktop
