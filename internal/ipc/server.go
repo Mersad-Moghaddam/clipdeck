@@ -20,6 +20,7 @@ import (
 
 	"github.com/Mersad-Moghaddam/clipdeck/internal/capture"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/config"
+	"github.com/Mersad-Moghaddam/clipdeck/internal/desktop"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/hypr"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/store"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/transform"
@@ -675,12 +676,22 @@ func (s *Server) handlePaste(conn net.Conn, params json.RawMessage) (any, *RPCEr
 }
 
 func copyToClipboard(text, mime string) error {
+	if session, err := desktop.DetectSession(os.Getenv); err == nil && session == "x11" {
+		return desktop.NewX11Backend().Write(context.Background(), desktop.Selection{MIME: mime, Data: []byte(text)})
+	}
 	cmd := exec.Command("wl-copy", "--type", mime)
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
 }
 
 func copyFileToClipboard(filePath, mime string) error {
+	if session, err := desktop.DetectSession(os.Getenv); err == nil && session == "x11" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+		return desktop.NewX11Backend().Write(context.Background(), desktop.Selection{MIME: mime, Data: data})
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return err

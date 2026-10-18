@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Mersad-Moghaddam/clipdeck/internal/config"
+	"github.com/Mersad-Moghaddam/clipdeck/internal/desktop"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/detect"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/hypr"
 	"github.com/Mersad-Moghaddam/clipdeck/internal/sensitive"
@@ -23,6 +25,7 @@ import (
 )
 
 type Capturer struct {
+	backend desktop.Backend
 	cfg     *config.Config
 	store   *store.Store
 	paused  bool
@@ -41,7 +44,12 @@ type Capturer struct {
 }
 
 func New(cfg *config.Config, s *store.Store, onEvent func(string, *store.Item)) *Capturer {
+	var backend desktop.Backend
+	if session, err := desktop.DetectSession(os.Getenv); err == nil && session == "x11" {
+		backend = desktop.NewX11Backend()
+	}
 	return &Capturer{
+		backend: backend,
 		cfg:     cfg,
 		store:   s,
 		onEvent: onEvent,
@@ -84,6 +92,15 @@ func (c *Capturer) isDuplicateEcho(hash string) bool {
 }
 
 func (c *Capturer) Start(ctx context.Context) error {
+	if c.backend != nil {
+		return c.backend.Watch(ctx, func() {
+			c.snapMu.Lock()
+			defer c.snapMu.Unlock()
+			if _, err := c.SnapshotCurrent(); err != nil {
+				log.Printf("capture: %v", err)
+			}
+		})
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -316,6 +333,52 @@ func (c *Capturer) ProcessImageContent(data []byte, mime string, sourceApp strin
 }
 
 func (c *Capturer) SnapshotCurrent() (*store.Item, error) {
+	if c.backend != nil {
+		selection, err := c.backend.Read(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		if len(selection.Data) == 0 {
+			return nil, nil
+		}
+		if selection.MIME == "text/uri-list" {
+			if c.IsPaused() {
+				return nil, nil
+			}
+			var paths []string
+			for _, line := range strings.Split(string(selection.Data), "\n") {
+				u, err := url.Parse(strings.TrimSpace(line))
+				if err == nil && u.Scheme == "file" && (u.Host == "" || u.Host == "localhost") && u.Path != "" {
+					paths = append(paths, u.Path)
+				}
+			}
+			if len(paths) == 0 {
+				return nil, nil
+			}
+			content := strings.Join(paths, "\n")
+			hash := sha256Hex(content)
+			if c.isDuplicateEcho(hash) {
+				return nil, nil
+			}
+			preview := fmt.Sprintf("%d files", len(paths))
+			if len(paths) == 1 {
+				preview = paths[0]
+			}
+			win, _ := c.backend.ActiveWindow(context.Background())
+			item := &store.Item{Hash: hash, Type: "file", Mime: "text/uri-list", Content: content, Preview: preview, SourceApp: hypr.SanitizeAppClass(win.Class), SizeBytes: int64(len(content))}
+			if err := c.store.SaveItem(item); err != nil {
+				return nil, err
+			}
+			if c.onEvent != nil {
+				c.onEvent("item_added", item)
+			}
+			return item, nil
+		}
+		if strings.HasPrefix(selection.MIME, "image/") {
+			return c.ProcessImageContent(selection.Data, selection.MIME, "")
+		}
+		return c.ProcessTextContent(string(selection.Data), []string{selection.MIME}, "")
+	}
 	// Query current types from wl-paste
 	cmd := exec.Command("wl-paste", "--list-types")
 	out, err := cmd.Output()
