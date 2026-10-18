@@ -20,7 +20,20 @@ export PYTHONPATH="$root/desktop" QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software
 "$python" -m clipdeck_ui >"$tmp/ui.log" 2>&1 &
 ui=$!
 for ((i=0;i<100;i++)); do xdotool search --class clipdeck-ui >/dev/null 2>&1 && break; kill -0 "$ui" 2>/dev/null || { cat "$tmp/ui.log" >&2; exit 1; }; sleep .1; done
-i3-msg -t get_tree >"$tmp/tree.json"
+# WM_CLASS appears before i3 necessarily applies its manage-time rules.
+for ((i=0;i<100;i++)); do
+  i3-msg -t get_tree >"$tmp/tree.json"
+  if "$python" - "$tmp/tree.json" <<'PY'
+import json, sys
+def ready(node):
+    if node.get('window_properties', {}).get('class') == 'clipdeck-ui':
+        return node.get('floating') in ('user_on', 'auto_on')
+    return any(ready(child) for child in node.get('nodes', []) + node.get('floating_nodes', []))
+sys.exit(0 if ready(json.load(open(sys.argv[1]))) else 1)
+PY
+  then break; fi
+  sleep .05
+done
 "$python" - "$tmp/tree.json" <<'PY'
 import json, sys
 def find(node):
