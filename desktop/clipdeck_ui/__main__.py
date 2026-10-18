@@ -45,10 +45,7 @@ def main():
     controller.set_target(target)
     if instance:
         def reopen(window_id):
-            controller.set_target(window_id)
-            controller.open()
-            controller.search("", "All")
-            client.connect_to_daemon()
+            controller.reopen(window_id)
             if engine.rootObjects():
                 engine.rootObjects()[0].raise_()
                 engine.rootObjects()[0].requestActivate()
