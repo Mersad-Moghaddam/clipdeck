@@ -17,6 +17,14 @@ Window {
         if (index >= 0) next.splice(index, 1); else next.push(id)
         selectedIds = next
     }
+    function age(value) {
+        let seconds = Math.max(0, (Date.now() - Date.parse(value)) / 1000)
+        if (!isFinite(seconds)) return ""
+        if (seconds < 60) return "now"
+        if (seconds < 3600) return Math.floor(seconds / 60) + "m"
+        if (seconds < 86400) return Math.floor(seconds / 3600) + "h"
+        return Math.floor(seconds / 86400) + "d"
+    }
     flags: Qt.Window | Qt.FramelessWindowHint
     onVisibleChanged: if (visible) requestActivate()
 
@@ -26,6 +34,39 @@ Window {
     Shortcut { sequence: "Ctrl+P"; onActivated: if (history.currentItem) deck.pin_item(history.currentItem.clip.id, !history.currentItem.clip.pinned) }
     Shortcut { sequence: "Ctrl+L"; onActivated: search.forceActiveFocus() }
     Shortcut { sequence: "Ctrl+M"; onActivated: deck.merge_copy(window.selectedIds) }
+    Shortcut { sequence: "Shift+Return"; onActivated: if (deck.selected.id) deck.paste_plain(deck.selected.id) }
+    Shortcut { sequence: "Delete"; onActivated: if (deck.selected.id && !search.activeFocus) deck.delete_item(deck.selected.id) }
+    Shortcut { sequence: "Shift+Delete"; onActivated: clearDialog.open() }
+    Shortcut { sequence: "Ctrl+U"; onActivated: search.clear() }
+    Shortcut { sequence: "Ctrl+T"; onActivated: if (deck.selected.id) transformMenu.open() }
+    Shortcut { sequence: "Tab"; onActivated: window.nextCategory(1) }
+    Shortcut { sequence: "Shift+Tab"; onActivated: window.nextCategory(-1) }
+    Repeater {
+        model: 9
+        delegate: Item {
+            required property int index
+            Shortcut {
+                sequence: "Alt+" + (index + 1)
+                onActivated: if (index < deck.items.length) deck.paste_item(deck.items[index].id)
+            }
+        }
+    }
+    function nextCategory(step) {
+        let names = ["All", "Pinned", "Colors", "Code", "Links", "Images", "Text"]
+        categories.selected = names[(names.indexOf(categories.selected) + step + names.length) % names.length]
+        deck.search(search.text, categories.selected)
+    }
+    Dialog {
+        id: clearDialog
+        width: Math.min(window.width - 40, 420)
+        anchors.centerIn: parent
+        modal: true
+        title: "Clear unpinned history?"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onAccepted: { window.selectedIds = []; deck.clear_history() }
+        contentItem: Text { text: "Pinned clips are kept. This cannot be undone."; color: theme.foreground; font.family: theme.fontFamily }
+        background: Rectangle { color: theme.surface; border.color: theme.accent; radius: theme.radius }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -100,6 +141,7 @@ Window {
                                 Text { Layout.fillWidth: true; text: (row.clip.pinned ? "PINNED " : "") + (row.clip.source_app || row.clip.type || "clipboard"); textFormat: Text.PlainText; elide: Text.ElideRight; color: row.clip.pinned ? theme.accent : theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
                                 Text { Layout.fillWidth: true; text: row.clip.preview || row.clip.content || ""; textFormat: Text.PlainText; elide: Text.ElideRight; maximumLineCount: 1; color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.body }
                             }
+                            Text { text: window.age(row.clip.created_at); color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
                         }
                         MouseArea { anchors.fill: parent; onClicked: function(mouse) { history.currentIndex = row.index; deck.select_item(row.clip); if (mouse.modifiers & Qt.ControlModifier) window.toggleSelection(row.clip.id) } onDoubleClicked: deck.copy_item(row.clip.id) }
                     }
@@ -111,7 +153,15 @@ Window {
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
                     RowLayout {
-                        Text { text: deck.selected.type || "Preview"; color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.subtitle; font.bold: true }
+                        Rectangle {
+                            width: 34; height: 34; color: theme.surface; radius: 6
+                            Text { anchors.centerIn: parent; text: (deck.selected.type || "TXT").slice(0,3).toUpperCase(); color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.bodySmall }
+                        }
+                        ColumnLayout {
+                            spacing: 3
+                            Text { text: deck.selected.type || "Preview"; color: theme.foreground; font.family: theme.fontFamily; font.pixelSize: theme.subtitle; font.bold: true }
+                            Text { text: (deck.selected.source_app || "clipboard") + "  ·  " + window.age(deck.selected.created_at) + "  ·  " + (deck.selected.size_bytes || 0) + " B"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
+                        }
                         Item { Layout.fillWidth: true }
                         DeckButton { text: deck.selected.pinned ? "Unpin Ctrl+P" : "Pin Ctrl+P"; enabled: !!deck.selected.id; onClicked: deck.pin_item(deck.selected.id, !deck.selected.pinned) }
                         DeckButton { text: "Delete"; enabled: !!deck.selected.id; onClicked: deck.delete_item(deck.selected.id) }
@@ -127,6 +177,7 @@ Window {
                     }
                     RowLayout {
                         DeckButton { text: "Paste Enter"; enabled: !!deck.selected.id; onClicked: deck.paste_item(deck.selected.id); primary: true }
+                        DeckButton { text: "Plain Shift+Enter"; enabled: !!deck.selected.id; onClicked: deck.paste_plain(deck.selected.id) }
                         DeckButton { text: "Copy Ctrl+C"; enabled: !!deck.selected.id; onClicked: deck.copy_item(deck.selected.id) }
                         DeckButton { text: "Merge " + window.selectedIds.length; visible: window.selectedIds.length > 1; onClicked: deck.merge_copy(window.selectedIds) }
                         DeckButton { text: "Transform"; enabled: !!deck.selected.id && deck.selected.type !== "image"; onClicked: transformMenu.open()
@@ -148,7 +199,7 @@ Window {
                 DeckButton { text: "Start & enable at login"; onClicked: deck.enable_startup() }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
-            Text { text: "Enter paste   Ctrl+C copy   Ctrl+P pin   Ctrl+L search   Esc dismiss"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
+            Text { text: "Enter paste   Ctrl+C copy   Space select   Alt+1–9 quick   Ctrl+T transform   Ctrl+P pin   Shift+Del clear   Esc dismiss"; color: theme.muted; font.family: theme.fontFamily; font.pixelSize: theme.caption }
         }
     }
     Timer { id: searchDelay; interval: 120; onTriggered: deck.search(search.text, categories.selected) }

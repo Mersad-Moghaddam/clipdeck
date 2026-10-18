@@ -155,10 +155,10 @@ if [ "$FROM_SOURCE" = 1 ]; then
     SRC="$TMP/src"
   fi
   say "Building from source"
-  run env CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X main.version=${VERSION}" -o "$TMP/clipdeck"  "${SRC}/cmd/clipdeck"
-  run env CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X main.version=${VERSION}" -o "$TMP/clipdeckd" "${SRC}/cmd/clipdeckd"
+  (cd "$SRC" && run env CGO_ENABLED=0 go build -trimpath \
+    -ldflags "-s -w -X main.version=${VERSION}" -o "$TMP/clipdeck" ./cmd/clipdeck)
+  (cd "$SRC" && run env CGO_ENABLED=0 go build -trimpath \
+    -ldflags "-s -w -X main.version=${VERSION}" -o "$TMP/clipdeckd" ./cmd/clipdeckd)
 else
   TARBALL="clipdeck_${VERSION}_linux_${ARCH}.tar.gz"
   # CLIPDECK_RELEASE_BASE_URL lets mirrored/air-gapped setups host the assets.

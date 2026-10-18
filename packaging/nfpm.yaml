@@ -12,7 +12,7 @@ section: utils
 priority: optional
 maintainer: Mersad Moghaddam <nickmersad81@gmail.com>
 description: |
-  A keyboard-first clipboard manager daemon and CLI for Wayland desktops.
+  A keyboard-first clipboard manager daemon and CLI for X11 and compatible Wayland desktops.
   Captures text, code, links, colors and images; search with type:/app:/
   pinned filters; pin, merge, transform and paste. Ships the clipdeckd user
   service and the clipdeck CLI (clipdeck doctor, clipdeck history, ...).
@@ -56,6 +56,9 @@ overrides:
     recommends:
       - wtype
       - xdg-utils
+      - xclip
+      - xdotool
+      - x11-utils
   rpm:
     depends:
       - wl-clipboard

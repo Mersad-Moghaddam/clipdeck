@@ -1,10 +1,10 @@
-# v0.5.0 release notes (draft)
+# v0.5.0 release notes
 
 ## Standalone desktop popup
 
 - Qt Quick application independent of Omarchy and Quickshell.
 - Searchable history, categories, pinned items, plain-text and image previews,
-  copy/paste, deletion, text transforms and merge-copy.
+  copy/plain paste, deletion, text transforms, merge-copy and confirmed history clearing.
 - Single-instance reopening and actionable connection/startup feedback.
 - Bundled JetBrainsMono Nerd Font with SIL OFL license; live Omarchy palette
   and typography overrides when present.
@@ -31,8 +31,9 @@
 
 Local validation includes Go race/vet, frontend/offscreen tests, real Xvfb text
 and PNG clipboard roundtrips, nested i3 popup/activation/UTF-8 paste delivery,
-and installer regression tests. Clean distro results and independent review
-must be finalized before this draft becomes a published release.
+and installer regression tests. Ubuntu 24.04 userspace wheel installation,
+native XCB launch, frontend suite and daemon deb installation were executed.
+Independent review findings were addressed with regression tests.
 
 GNOME Wayland does not expose the clipboard-watch protocol required here;
 choose an X11 session. No universal compositor/distribution compatibility is

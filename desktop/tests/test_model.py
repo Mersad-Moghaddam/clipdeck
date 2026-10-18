@@ -63,6 +63,17 @@ class PopupTests(unittest.TestCase):
         self.popup.paste_item("a")
         self.assertEqual(self.client.calls[-1][2]["target_window"], "42")
 
+    def test_plain_paste_preserves_target_and_confirmation(self):
+        self.popup.set_target("42")
+        self.popup.paste_plain("a")
+        self.assertEqual(self.client.calls[-1][2], {"id": "a", "plain": True, "confirmed": True, "target_window": "42"})
+
+    def test_clear_preserves_pinned_and_refreshes(self):
+        self.popup.clear_history()
+        self.assertEqual(self.client.calls[-1][1:], ("clear", {"include_pinned": False}))
+        self.client.response.emit(self.client.calls[-1][0], {"deleted": 2})
+        self.assertEqual(self.client.calls[-1][1], "query")
+
     def test_image_preview_is_available_without_interpreting_text_as_markup(self):
         self.popup.select_item({"id": "image", "type": "image", "thumbnail_path": "/home/user/thumb.png"})
         self.assertEqual(self.popup.imageSource, "file:///home/user/thumb.png")

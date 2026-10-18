@@ -136,6 +136,16 @@ class PopupController(QObject):
     def set_target(self, window_id):
         self._target_window = window_id
 
+    @Slot(str)
+    def paste_plain(self, item_id):
+        request_id = self.client.call("paste", {"id": item_id, "plain": True, "confirmed": True, "target_window": self._target_window})
+        self._requests[request_id] = ("paste", item_id)
+
+    @Slot()
+    def clear_history(self):
+        request_id = self.client.call("clear", {"include_pinned": False})
+        self._requests[request_id] = ("refresh", None)
+
     @Slot(str, bool)
     def pin_item(self, item_id, pinned):
         request_id = self.client.call("pin", {"id": item_id, "pinned": pinned})

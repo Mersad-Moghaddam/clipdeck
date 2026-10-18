@@ -47,10 +47,15 @@ RPM and Alpine live installation have not been executed. ARM64 execution,
 Zorin desktop login, and alternate Wayland compositor behavior remain unverified.
 Published artifact checksums are not verified until actual publication/download.
 
-## Visual acceptance (open)
+## Visual comparison
 
 Rendered screenshot `/tmp/opencode/clipdeck-standalone-final.png` was compared
 with the existing plugin's `screenshots/dark.png`. Font/palette match work is
 present; generic platform buttons were identified and replaced with shared
-theme-token controls. Full metadata/action/keyboard parity remains a release
-gate. Do not interpret QML load success as visual equivalence.
+theme-token controls. A second render `/tmp/opencode/clipdeck-parity.png` shows
+the shared typeface, palette, two-column proportions, inspector metadata and
+quiet action controls. Standalone adds native-window semantics rather than a
+full-screen shell scrim. Plain paste, clear confirmation, category cycling,
+quick slots and transform shortcuts are wired; QML warnings found during the
+render were fixed and added to the smoke-test assertions. The frontend suite
+now contains 40 passing tests on the host and Ubuntu userspace.
