@@ -26,7 +26,7 @@ for ((i=0;i<100;i++)); do [[ -s "$tmp/display" ]] && break; sleep .05; done
 export DISPLAY=":$(cat "$tmp/display")" XDG_SESSION_TYPE=x11 XDG_RUNTIME_DIR="$tmp/runtime"
 unset WAYLAND_DISPLAY I3SOCK SWAYSOCK
 mkdir -m700 "$XDG_RUNTIME_DIR"
-printf '%s\n' 'font pango:monospace 10' 'for_window [class="clipdeck-ui"] floating enable, move position center' >"$tmp/i3.config"
+printf '%s\n' '# i3 config file (v4)' 'font pango:monospace 10' 'for_window [class="clipdeck-ui"] floating enable, move position center' >"$tmp/i3.config"
 i3 -c "$tmp/i3.config" >"$tmp/i3.log" 2>&1 &
 wm=$!
 for ((i=0;i<100;i++)); do i3-msg -t get_tree >/dev/null 2>&1 && break; sleep .05; done
