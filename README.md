@@ -49,34 +49,45 @@ The script verifies architecture, checks SHA256 checksums, installs binaries ato
 
 ### Distribution packages
 
-Download and install prebuilt packages for v0.4.2 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
+Download and install prebuilt packages for v0.4.3 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases). Downloads below fail closed: a nonempty matching checksum entry and successful verification are required before installation.
 
 #### Debian and Ubuntu (`.deb`)
 
 ```bash
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.2_amd64.deb
-sudo apt install ./clipdeck_0.4.2_amd64.deb
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.3_amd64\.deb$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
+sudo apt install ./clipdeck_0.4.3_amd64.deb
 ```
 *(For ARM64 systems, substitute `arm64` for `amd64`)*
 
 #### Fedora and RHEL (`.rpm`)
 
 ```bash
-sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.2-1.x86_64.rpm
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck-0.4.3-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.4\.3-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
+sudo dnf install ./clipdeck-0.4.3-1.x86_64.rpm
 ```
 *(For ARM64 systems, substitute `aarch64` for `x86_64`)*
 
 #### openSUSE (`.rpm`)
 
 ```bash
-sudo zypper install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.2-1.x86_64.rpm
+# Download and verify the RPM using the Fedora block above; use this instead of dnf:
+sudo zypper install ./clipdeck-0.4.3-1.x86_64.rpm
 ```
 
 #### Alpine Linux (`.apk`)
 
 ```bash
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.2_x86_64.apk
-sudo apk add --allow-untrusted ./clipdeck_0.4.2_x86_64.apk
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.3_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
+sudo apk add --allow-untrusted ./clipdeck_0.4.3_x86_64.apk
 ```
 
 #### Arch Linux
@@ -88,7 +99,9 @@ cd /tmp/clipdeck/packaging/aur/clipdeck && makepkg -si
 
 ## Quick start
 
-Enable and start the background daemon:
+Native systemd packages start the daemon automatically at your next graphical login. In the Omarchy plugin, click **Start & enable at login** to start immediately and enable future logins without typing a terminal command. The companion must already be installed. The portable installer also enables startup by default unless `--no-service` is selected. Non-systemd desktops need a compositor/session autostart entry.
+
+Optional terminal equivalent:
 
 ```bash
 systemctl --user enable --now clipdeckd.service

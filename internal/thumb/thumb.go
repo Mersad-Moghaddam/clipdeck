@@ -71,13 +71,18 @@ func GenerateThumbnail(data []byte, thumbsDir string, maxDim int) (*ImageInfo, e
 	thumbFilename := fmt.Sprintf("%s_thumb.png", hashHex)
 	thumbPath := filepath.Join(thumbsDir, thumbFilename)
 
-	if _, err := os.Stat(thumbPath); err == nil {
+	if fi, err := os.Lstat(thumbPath); err == nil {
+		if !fi.Mode().IsRegular() {
+			return nil, fmt.Errorf("thumbnail target is not a regular file")
+		}
 		return &ImageInfo{
 			Width:         cfg.Width,
 			Height:        cfg.Height,
 			Format:        format,
 			ThumbnailPath: thumbPath,
 		}, nil
+	} else if !os.IsNotExist(err) {
+		return nil, err
 	}
 
 	f, err := os.CreateTemp(thumbsDir, thumbFilename+".tmp-*")
@@ -91,7 +96,10 @@ func GenerateThumbnail(data []byte, thumbsDir string, maxDim int) (*ImageInfo, e
 		_ = os.Remove(tmpPath)
 		return nil, err
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return nil, err
+	}
 
 	if err := os.Rename(tmpPath, thumbPath); err != nil {
 		_ = os.Remove(tmpPath)

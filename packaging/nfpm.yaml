@@ -24,6 +24,9 @@ depends:
 recommends:
   - wtype
 contents:
+  - src: ../clipdeckd.service
+    dst: /usr/lib/systemd/user/graphical-session.target.wants/clipdeckd.service
+    type: symlink
   - src: ./bin/clipdeck
     dst: /usr/bin/clipdeck
     file_info:

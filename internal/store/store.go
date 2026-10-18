@@ -215,6 +215,9 @@ func (s *Store) SaveItem(item *Item) error {
 }
 
 func (s *Store) SaveBlob(data []byte, ext string) (string, error) {
+	if strings.ContainsAny(ext, "/\\\x00") {
+		return "", fmt.Errorf("invalid blob extension")
+	}
 	hashHex := hashContent(string(data))
 	fileName := hashHex
 	if ext != "" {
@@ -225,12 +228,26 @@ func (s *Store) SaveBlob(data []byte, ext string) (string, error) {
 	}
 
 	fullPath := filepath.Join(s.blobsDir, fileName)
-	if _, err := os.Stat(fullPath); err == nil {
+	if fi, err := os.Lstat(fullPath); err == nil {
+		if !fi.Mode().IsRegular() {
+			return "", fmt.Errorf("blob target is not a regular file")
+		}
 		return fullPath, nil // already exists
+	} else if !os.IsNotExist(err) {
+		return "", err
 	}
 
-	tmpFile := fullPath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+	tmp, err := os.CreateTemp(s.blobsDir, ".blob-*")
+	if err != nil {
+		return "", err
+	}
+	tmpFile := tmp.Name()
+	defer os.Remove(tmpFile)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
 		return "", err
 	}
 
@@ -434,7 +451,7 @@ func (s *Store) searchFallback(text, typeFilter, appFilter string, pinnedOnly bo
 }
 
 // isManagedItemPath returns true only if path is an absolute, lexically clean path
-// pointing to a direct child regular file within the store's blobsDir or thumbsDir,
+// pointing to a direct child within the store's blobsDir or thumbsDir,
 // with no directory traversal components (".." or ".").
 func (s *Store) isManagedItemPath(path string) bool {
 	if path == "" {
@@ -480,7 +497,7 @@ func (s *Store) SanitizeImportedItem(item *Item) {
 	if !keep(item.ThumbnailPath) {
 		item.ThumbnailPath = ""
 	}
-	if item.Type == "image" && !s.isManagedItemPath(item.Content) {
+	if item.Type == "image" {
 		item.Content = item.BlobPath
 	}
 	if item.Hash == "" {

@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -40,5 +41,30 @@ func TestGenerateThumbnail(t *testing.T) {
 
 	if _, err := os.Stat(info.ThumbnailPath); err != nil {
 		t.Fatalf("Thumbnail file missing: %v", err)
+	}
+}
+
+func TestGenerateThumbnailRejectsCachedSymlink(t *testing.T) {
+	dir := t.TempDir()
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	info, err := GenerateThumbnail(data.Bytes(), dir, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(info.ThumbnailPath); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(t.TempDir(), "private.png")
+	if err := os.WriteFile(victim, []byte("private"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, info.ThumbnailPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := GenerateThumbnail(data.Bytes(), dir, 200); err == nil {
+		t.Fatal("accepted cached thumbnail symlink")
 	}
 }
