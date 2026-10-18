@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -117,5 +120,99 @@ func TestListMaskedJSON(t *testing.T) {
 	}
 	if !strings.Contains(jsonStr, "[hidden secret]") {
 		t.Fatalf("expected masked content in json output: %s", jsonStr)
+	}
+}
+
+func TestImportSanitizesHostileJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	st, err := store.Open(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	victimFile := filepath.Join(t.TempDir(), "important_user_data.txt")
+	if err := os.WriteFile(victimFile, []byte("sensitive-payload"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	validBlob, err := st.SaveBlob([]byte("valid-blob-data"), "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blobsDir := filepath.Join(tempDir, "blobs")
+	rel, err := filepath.Rel(blobsDir, victimFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	traversalPath := blobsDir + "/" + rel
+
+	jsonContent := fmt.Sprintf(`[
+		{
+			"id": "hostile-1",
+			"hash": "h1",
+			"type": "image",
+			"mime": "image/png",
+			"content": "%s",
+			"blob_path": "%s",
+			"thumbnail_path": "%s"
+		},
+		{
+			"id": "valid-1",
+			"hash": "v1",
+			"type": "image",
+			"mime": "image/png",
+			"content": "%s",
+			"blob_path": "%s"
+		}
+	]`, traversalPath, traversalPath, traversalPath, validBlob, validBlob)
+
+	var items []store.Item
+	if err := json.Unmarshal([]byte(jsonContent), &items); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, item := range items {
+		st.SanitizeImportedItem(&item)
+		if err := st.SaveItem(&item); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Verify hostile item had its paths stripped
+	hItem, err := st.GetItem("hostile-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hItem.BlobPath != "" || hItem.ThumbnailPath != "" {
+		t.Fatalf("hostile paths were stored: blob=%q thumb=%q", hItem.BlobPath, hItem.ThumbnailPath)
+	}
+
+	// Verify valid item kept its path
+	vItem, err := st.GetItem("valid-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vItem.BlobPath != validBlob {
+		t.Fatalf("valid blob path was dropped: %q", vItem.BlobPath)
+	}
+
+	// Now delete hostile item, then clear all
+	if err := st.DeleteItem("hostile-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Clear(true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Victim file must remain intact!
+	if _, err := os.Stat(victimFile); err != nil {
+		t.Fatalf("victim file was unlinked: %v", err)
+	}
+
+	// Valid blob should have been reaped
+	if _, err := os.Stat(validBlob); !os.IsNotExist(err) {
+		t.Fatalf("valid blob was not reaped after Clear: err=%v", err)
 	}
 }

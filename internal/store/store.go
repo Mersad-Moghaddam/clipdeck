@@ -45,6 +45,13 @@ type Store struct {
 }
 
 func Open(dataDir string) (*Store, error) {
+	absDataDir, err := filepath.Abs(dataDir)
+	if err == nil {
+		dataDir = absDataDir
+	} else {
+		dataDir = filepath.Clean(dataDir)
+	}
+
 	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
@@ -426,28 +433,55 @@ func (s *Store) searchFallback(text, typeFilter, appFilter string, pinnedOnly bo
 	return items, total, nil
 }
 
+// isManagedItemPath returns true only if path is an absolute, lexically clean path
+// pointing to a direct child regular file within the store's blobsDir or thumbsDir,
+// with no directory traversal components (".." or ".").
+func (s *Store) isManagedItemPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	if filepath.Clean(path) != path {
+		return false
+	}
+	dir := filepath.Dir(path)
+	if dir != s.blobsDir && dir != s.thumbsDir {
+		return false
+	}
+	base := filepath.Base(path)
+	if base == "." || base == ".." || base == "" || strings.Contains(base, "/") || strings.Contains(base, "\\") {
+		return false
+	}
+	return true
+}
+
 // SanitizeImportedItem neutralizes hostile or stale file references coming
 // from an untrusted history export: blob/thumbnail paths are kept only when
-// they live inside this store's managed dirs AND the file still exists —
-// otherwise the row degrades to a plain item. An empty imported hash is
-// derived from content so dedupe stays meaningful.
+// they live inside this store's managed dirs, contain no path traversal
+// components, and the file exists as a regular file. Otherwise the row
+// degrades to a plain item. An empty imported hash is derived from content
+// so dedupe stays meaningful.
 func (s *Store) SanitizeImportedItem(item *Item) {
 	keep := func(path string) bool {
-		if path == "" {
+		if !s.isManagedItemPath(path) {
 			return false
 		}
-		if !strings.HasPrefix(path, s.blobsDir+string(os.PathSeparator)) &&
-			!strings.HasPrefix(path, s.thumbsDir+string(os.PathSeparator)) {
+		fi, err := os.Lstat(path)
+		if err != nil || !fi.Mode().IsRegular() {
 			return false
 		}
-		_, err := os.Stat(path)
-		return err == nil
+		return true
 	}
 	if !keep(item.BlobPath) {
 		item.BlobPath = ""
 	}
 	if !keep(item.ThumbnailPath) {
 		item.ThumbnailPath = ""
+	}
+	if item.Type == "image" && !s.isManagedItemPath(item.Content) {
+		item.Content = item.BlobPath
 	}
 	if item.Hash == "" {
 		item.Hash = hashContent(item.Content)
@@ -557,14 +591,15 @@ func (s *Store) DeleteItem(id string) error {
 }
 
 // gcItemFile unlinks a store-managed item file only when no remaining row
-// references it. Paths outside the blob/thumb dirs are never unlinked — the
-// row data may come from an imported or hand-edited database.
+// references it. Paths outside the blob/thumb dirs or containing traversal
+// components are never unlinked — the row data may come from an imported
+// or hand-edited database.
 func (s *Store) gcItemFile(path string) {
-	if path == "" {
+	if !s.isManagedItemPath(path) {
 		return
 	}
-	if !strings.HasPrefix(path, s.blobsDir+string(os.PathSeparator)) &&
-		!strings.HasPrefix(path, s.thumbsDir+string(os.PathSeparator)) {
+	fi, err := os.Lstat(path)
+	if err != nil || !fi.Mode().IsRegular() {
 		return
 	}
 	var refs int

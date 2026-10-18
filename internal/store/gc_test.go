@@ -119,6 +119,125 @@ func TestClearReapsBlobFiles(t *testing.T) {
 	}
 }
 
+func TestGCRejectsTraversalPaths(t *testing.T) {
+	s := newGCStore(t)
+
+	victimDir := t.TempDir()
+	victimFile := filepath.Join(victimDir, "victim_document.pdf")
+	if err := os.WriteFile(victimFile, []byte("important content"), 0600); err != nil {
+		t.Fatalf("write victim file: %v", err)
+	}
+
+	rel, err := filepath.Rel(s.blobsDir, victimFile)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+	traversalPath := s.blobsDir + "/" + rel
+
+	// Symlink attack: symlink inside blobsDir pointing to victim
+	symlinkPath := filepath.Join(s.blobsDir, "attack_symlink.png")
+	if err := os.Symlink(victimFile, symlinkPath); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+	defer os.Remove(symlinkPath)
+
+	// Directory inside blobsDir
+	subDirPath := filepath.Join(s.blobsDir, "sub_directory")
+	if err := os.MkdirAll(subDirPath, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	defer os.RemoveAll(subDirPath)
+
+	attackPaths := []string{
+		traversalPath,
+		s.blobsDir + "/../../victim_document.pdf",
+		s.blobsDir + "/../blobs/victim_document.pdf",
+		s.blobsDir + "/./victim_document.pdf",
+		s.blobsDir + "//victim_document.pdf",
+		"relative_victim.pdf",
+		"../victim_document.pdf",
+		victimFile,
+		symlinkPath,
+		subDirPath,
+		"",
+	}
+
+	for _, ap := range attackPaths {
+		s.gcItemFile(ap)
+		if _, err := os.Stat(victimFile); err != nil {
+			t.Fatalf("gcItemFile(%q) unlinked victim file: %v", ap, err)
+		}
+	}
+}
+
+// Ensure DeleteItem, Clear, and PurgeExpired never unlink outside files even if
+// malicious rows bypass sanitization and exist directly in the database.
+func TestStoreOperationsRejectTraversalRows(t *testing.T) {
+	s := newGCStore(t)
+
+	victimFile := filepath.Join(t.TempDir(), "confidential.key")
+	if err := os.WriteFile(victimFile, []byte("super-secret-key"), 0600); err != nil {
+		t.Fatalf("write victim file: %v", err)
+	}
+
+	rel, err := filepath.Rel(s.blobsDir, victimFile)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+	traversalPath := s.blobsDir + "/" + rel
+
+	// 1. DeleteItem with malicious paths
+	item1 := imageItem("malicious-1", traversalPath, 100)
+	item1.ThumbnailPath = traversalPath
+	mustSaveItem(t, s, item1)
+
+	if err := s.DeleteItem("malicious-1"); err != nil {
+		t.Fatalf("DeleteItem: %v", err)
+	}
+	if _, err := os.Stat(victimFile); err != nil {
+		t.Fatalf("DeleteItem unlinked victim file: %v", err)
+	}
+
+	// 2. Clear(false) with malicious paths
+	item2 := imageItem("malicious-2", traversalPath, 100)
+	item2.ThumbnailPath = traversalPath
+	mustSaveItem(t, s, item2)
+
+	if _, err := s.Clear(false); err != nil {
+		t.Fatalf("Clear(false): %v", err)
+	}
+	if _, err := os.Stat(victimFile); err != nil {
+		t.Fatalf("Clear(false) unlinked victim file: %v", err)
+	}
+
+	// 3. Clear(true) with pinned malicious paths
+	item3 := imageItem("malicious-3", traversalPath, 100)
+	item3.ThumbnailPath = traversalPath
+	item3.Pinned = true
+	item3.PinnedAt = time.Now().UnixMilli()
+	mustSaveItem(t, s, item3)
+
+	if _, err := s.Clear(true); err != nil {
+		t.Fatalf("Clear(true): %v", err)
+	}
+	if _, err := os.Stat(victimFile); err != nil {
+		t.Fatalf("Clear(true) unlinked victim file: %v", err)
+	}
+
+	// 4. PurgeExpired with expired malicious paths
+	item4 := imageItem("malicious-4", traversalPath, 100)
+	item4.ThumbnailPath = traversalPath
+	item4.ExpiresAt = time.Now().Add(-time.Hour).Unix()
+	mustSaveItem(t, s, item4)
+
+	if _, err := s.PurgeExpired(); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+	if _, err := os.Stat(victimFile); err != nil {
+		t.Fatalf("PurgeExpired unlinked victim file: %v", err)
+	}
+}
+
 func TestPurgeExpiredReapsBlobFiles(t *testing.T) {
 	s := newGCStore(t)
 

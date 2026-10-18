@@ -49,34 +49,34 @@ The script verifies architecture, checks SHA256 checksums, installs binaries ato
 
 ### Distribution packages
 
-Download and install prebuilt packages for v0.4.1 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
+Download and install prebuilt packages for v0.4.2 from the [GitHub releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
 #### Debian and Ubuntu (`.deb`)
 
 ```bash
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.1_amd64.deb
-sudo apt install ./clipdeck_0.4.1_amd64.deb
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.2_amd64.deb
+sudo apt install ./clipdeck_0.4.2_amd64.deb
 ```
 *(For ARM64 systems, substitute `arm64` for `amd64`)*
 
 #### Fedora and RHEL (`.rpm`)
 
 ```bash
-sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.1-1.x86_64.rpm
+sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.2-1.x86_64.rpm
 ```
 *(For ARM64 systems, substitute `aarch64` for `x86_64`)*
 
 #### openSUSE (`.rpm`)
 
 ```bash
-sudo zypper install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.1-1.x86_64.rpm
+sudo zypper install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.2-1.x86_64.rpm
 ```
 
 #### Alpine Linux (`.apk`)
 
 ```bash
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.1_x86_64.apk
-sudo apk add --allow-untrusted ./clipdeck_0.4.1_x86_64.apk
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.2_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.4.2_x86_64.apk
 ```
 
 #### Arch Linux
