@@ -49,10 +49,10 @@ select an X11 session for clipboard capture.
 
 ```bash
 # Download a version-pinned installer, inspect it, then preview its actions.
-curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.0/packaging/install.sh -o clipdeck-install.sh
+curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o clipdeck-install.sh
 less clipdeck-install.sh
-bash clipdeck-install.sh --version 0.5.0 --with-ui --dry-run
-bash clipdeck-install.sh --version 0.5.0 --with-ui
+bash clipdeck-install.sh --version 0.5.1 --with-ui --dry-run
+bash clipdeck-install.sh --version 0.5.1 --with-ui
 ```
 
 The script verifies downloaded release checksums, installs into `~/.local`, and
@@ -87,10 +87,10 @@ Private Qt environments are retained under `~/.local/share/clipdeck/ui-*` for
 recovery. They can be removed manually once no popup uses them. Run
 `~/.local/bin/clipdeck doctor` for session/dependency diagnostics.
 
-### Standalone desktop app (v0.5.0 development)
+### Standalone desktop app (v0.5.1 development)
 
 The next release adds a standalone Omarchy-style popup and an X11 backend for
-i3 and other desktops. **v0.5.0 is not published yet.** The existing Omarchy
+i3 and other desktops. **v0.5.1 is not published yet.** The existing Omarchy
 overlay is unchanged. See the [desktop support and i3 setup guide](docs/desktop-support.md)
 for tested behavior and remaining release gates.
 
@@ -99,8 +99,8 @@ dependencies are required):
 
 ```bash
 # Review the installer and preview its actions before installing.
-bash packaging/install.sh --from-source --version 0.5.0 --with-ui --dry-run
-bash packaging/install.sh --from-source --version 0.5.0 --with-ui
+bash packaging/install.sh --from-source --version 0.5.1 --with-ui --dry-run
+bash packaging/install.sh --from-source --version 0.5.1 --with-ui
 clipdeck-ui
 ```
 
